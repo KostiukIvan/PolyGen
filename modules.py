@@ -13,15 +13,15 @@
 # limitations under the License.
 
 """Modules and networks for mesh generation."""
-import sonnet as snt
-from tensor2tensor.layers import common_attention
-from tensor2tensor.layers import common_layers
-import tensorflow.compat.v1 as tf
-from tensorflow.python.framework import function
-import tensorflow_probability as tfp
+#import sonnet as snt
+#from tensor2tensor.layers import common_attention
+#from tensor2tensor.layers import common_layers
+#import tensorflow.compat.v1 as tf
+#from tensorflow.python.framework import function
+#import tensorflow_probability as tfp
 
-tfd = tfp.distributions
-tfb = tfp.bijectors
+#tfd = tfp.distributions
+#tfb = tfp.bijectors
 
 
 def dequantize_verts(verts, n_bits, add_noise=False):
