@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 
 class SortVertices:
@@ -41,6 +42,30 @@ class QuantizeVertices:
         n_vals = 2 ** 8
         delta = 1. / n_vals
         vertices = np.maximum(np.minimum((vertices // delta), n_vals - 1), 0).astype(np.int32)
+        return vertices
+
+
+class ToTensor:
+    def __init__(self):
+        pass
+
+    def __call__(self, vertices):
+        return torch.from_numpy(vertices)
+
+
+class ResizeVertices:
+    def __init__(self, target_len_of_seq=600):
+        self.target_len_of_seq = target_len_of_seq
+
+    def __call__(self, vertices):
+        curr_len_of_seq = vertices.shape[0]
+        if curr_len_of_seq >= self.target_len_of_seq:
+            vertices = vertices[:self.target_len_of_seq, :]
+        else:
+            diff_len_of_seq = self.target_len_of_seq - curr_len_of_seq
+            zeros = torch.zeros((diff_len_of_seq, 3))
+            vertices = torch.cat([vertices, zeros], dim=0)
+
         return vertices
 
 

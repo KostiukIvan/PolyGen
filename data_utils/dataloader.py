@@ -1,4 +1,4 @@
-from data_utils.transformers import *
+from data_utils.transformations import *
 import numpy as np
 import pandas as pd
 from os import listdir
@@ -8,9 +8,10 @@ from torch.utils.data import Dataset
 categories = ['basket', 'chair', 'lamp', 'sofa', 'table']
 
 
+# TODO: Implement TokenizeVertices
 class VerticesDataset(Dataset):
     def __init__(self, root_dir=r'C:\Users\ivank\UJ\Deep learining with multiple tasks\projects\ShapeNetCore_PolyGenSubset\train',
-                 classes=['basket'], transform=[SortVertices(), NormalizeVertices(), QuantizeVertices()],
+                 classes=['basket'], transform=[SortVertices(), NormalizeVertices(), QuantizeVertices(), ToTensor(), ResizeVertices()],
                  split='train', train_percentage=0.925):
         """
         Args:
@@ -75,3 +76,5 @@ class VerticesDataset(Dataset):
                 if len(data) > 0 and data[0] == 'v':
                     vertices.append(data[1:])
         return np.array(vertices, dtype=np.float32)
+
+
