@@ -1,13 +1,14 @@
 from torch.utils.data import DataLoader
 from reformer_pytorch import Reformer
 import torch
+import numpy as np
 
 import data_utils.dataloader as dl
 from models.VertexModel_test import VertexPolyGen
 from experiments.config import VertexConfig
 
 EPOCHS = 10
-GPU = False
+GPU = True
 config = VertexConfig(embed_dim=128, reformer__depth=6,
                              reformer__lsh_dropout=0.,
                              reformer__ff_dropout=0.,
@@ -31,9 +32,9 @@ model.train()
 for epoch in range(EPOCHS):
     total_loss = 0.0
     for i, batch in enumerate(train_dataloader):
-        print(i)
+        print(batch.shape)
         optimizer.zero_grad()
-        loss = model(*batch)
+        loss = model(batch)
         if np.isnan(loss.item()):
             print(f"(E): Model return loss {loss.item()}")
         total_loss += loss.item()

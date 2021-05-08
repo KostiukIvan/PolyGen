@@ -12,6 +12,24 @@ def init_weights(m):
         nn.init.uniform_(m.weight, -0.05, 0.05)
 
 
+def accuracy(y_pred, y_true, ignore_label=None, device=None):
+    y_pred = y_pred.argmax(dim=1)
+
+    if ignore_label:
+        normalizer = torch.sum(y_true!=ignore_label)
+        ignore_mask = torch.where(
+            y_true == ignore_label,
+            torch.zeros_like(y_true, device=device),
+            torch.ones_like(y_true, device=device)
+        ).type(torch.float32)
+    else:
+        normalizer = y_true.shape[0]
+        ignore_mask = torch.ones_like(y_true, device=device).type(torch.float32)
+
+    acc = (y_pred.reshape(-1)==y_true.reshape(-1)).type(torch.float32)
+    acc = torch.sum(acc*ignore_mask)
+    return acc / normalizer
+
 class VertexDecoderEmbedding(nn.Module):
 
     def __init__(self, embed_dim=256,
@@ -146,6 +164,7 @@ class VertexPolyGen(nn.Module):
         acc = accuracy(
             hs, targets, ignore_label=self.tokenizer.pad_id, device=device
         )
+        print("+", hs.dtype, targets.dtype)
         loss = self.loss_func(hs, targets)
 
         if hasattr(self, 'reporter'):
