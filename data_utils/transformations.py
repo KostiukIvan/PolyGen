@@ -68,6 +68,7 @@ class ResizeVertices:
 
         return vertices
 
+
 class VertexTokenizer:
     def __init__(self, max_seq_len):
         self.max_seq_len = max_seq_len - 1 # make one slot left for eos token

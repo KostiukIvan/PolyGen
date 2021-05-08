@@ -1,3 +1,7 @@
+from pathlib import Path
+from data_utils.transformations import *
+
+
 class Config(object):
     def __getitem__(self, key):
         return self.config[key]
@@ -26,6 +30,22 @@ class VertexConfig(Config):
                  reformer__ff_dropout=0.2,
                  reformer__post_attn_dropout=0.2,
                  reformer__ff_mult=4):
+
+        # dataset config
+        train_dataset_config = {
+            "root_dir":  r"C:\Users\ivank\UJ\Deep learining with multiple tasks\projects\datasets\polygen_exports_2\polygen_exports",
+            "classes":   ['02691156'],
+            "transform": [SortVertices(),
+                          NormalizeVertices(),
+                          QuantizeVertices(),
+                          ToTensor(),
+                          ResizeVertices(800)
+                          ],
+            "split": 'train',
+            "train_percentage": 0.09
+
+        }
+
         # tokenizer config
         tokenizer_config = {
             "bos_id": tokenizer__bos_id,
@@ -61,6 +81,7 @@ class VertexConfig(Config):
         }
 
         self.config = {
+            "train_dataset": train_dataset_config,
             "embed_dim": embed_dim,
             "max_seq_len": max_seq_len,
             "tokenizer": tokenizer_config,

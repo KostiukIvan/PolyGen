@@ -1,4 +1,6 @@
 from data_utils.transformations import *
+
+import os
 import numpy as np
 import pandas as pd
 from os import listdir
@@ -12,7 +14,7 @@ categories = ['02691156']
 class VerticesDataset(Dataset):
     def __init__(self,
                 root_dir=r'C:\Users\ivank\UJ\Deep learining with multiple tasks\projects\ShapeNetCore_PolyGenSubset\train',
-                classes=['04330267'],
+                classes=['02691156'],
                 transform=[SortVertices(), NormalizeVertices(), QuantizeVertices(), ToTensor(), ResizeVertices(800), VertexTokenizer(801)],
                 split='train',
                 train_percentage=0.925):
@@ -32,7 +34,6 @@ class VerticesDataset(Dataset):
                 for augmented_mesh_file in os.listdir(join(root_dir, class_name, augmentation_dir)):
                     file_paths.append(join(root_dir, class_name, augmentation_dir, augmented_mesh_file))
         self.X_train, self.X_valid = train_test_split(file_paths, test_size = 1 - train_percentage, shuffle=True)
-                
 
     def __len__(self):
         if self.split not in {'train', 'valid'}:
@@ -63,7 +64,6 @@ class VerticesDataset(Dataset):
     def _load_obj(self, filename):
         """Load vertices from .obj wavefront format file."""
         vertices = []
-        print(filename)
         with open(filename, 'r') as mesh:
             for line in mesh:
                 data = line.split()
