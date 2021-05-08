@@ -33,13 +33,13 @@ class VertexConfig(Config):
 
         # dataset config
         train_dataset_config = {
-            "root_dir":  r"C:\Users\ivank\UJ\Deep learining with multiple tasks\projects\datasets\polygen_exports_2\polygen_exports",
+            "root_dir":  r"/mnt/users/ikostiuk/local/PolyGen/polygen_exports",
             "classes":   ['02691156'],
             "transform": [SortVertices(),
                           NormalizeVertices(),
                           QuantizeVertices(),
                           ToTensor(),
-                          ResizeVertices(800)
+                          ResizeVertices(799)
                           ],
             "split": 'train',
             "train_percentage": 0.09

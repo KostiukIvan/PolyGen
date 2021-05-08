@@ -7,7 +7,7 @@ import data_utils.dataloader as dl
 from models.VertexModel_test import VertexPolyGen
 from experiments.config import VertexConfig
 
-EPOCHS = 10
+EPOCHS = 100
 GPU = True
 config = VertexConfig(embed_dim=128, reformer__depth=6,
                              reformer__lsh_dropout=0.,
@@ -22,19 +22,18 @@ else:
     device = None
 
 training_data = dl.VerticesDataset(**config['train_dataset'])
-train_dataloader = DataLoader(training_data, batch_size=1, shuffle=True)
+train_dataloader = DataLoader(training_data, batch_size=6, shuffle=True)
 
 #decoder = Reformer(**config['reformer'])
-model = VertexPolyGen(config, device=device)
+model = VertexPolyGen(config, device=device).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
 
 model.train()
 for epoch in range(EPOCHS):
     total_loss = 0.0
     for i, batch in enumerate(train_dataloader):
-        print(batch.shape)
         optimizer.zero_grad()
-        loss = model(batch)
+        loss = model(batch, device)
         if np.isnan(loss.item()):
             print(f"(E): Model return loss {loss.item()}")
         total_loss += loss.item()

@@ -69,10 +69,9 @@ class VertexDecoderEmbedding(nn.Module):
             embed [torch.tensor]: (batch, length, embed) shape tensor after embedding.
 
         """
-
-        embed = self.value_embed(tokens["value_tokens"].long()) * self.embed_scaler
-        embed = embed + (self.coord_type_embed(tokens["coord_type_tokens"]) * self.embed_scaler)
-        embed = embed + (self.position_embed(tokens["position_tokens"]) * self.embed_scaler)
+        embed = self.value_embed(tokens["value_tokens"].to(self.device).long()) * self.embed_scaler
+        embed = embed + (self.coord_type_embed(tokens["coord_type_tokens"].to(self.device)) * self.embed_scaler)
+        embed = embed + (self.position_embed(tokens["position_tokens"].to(self.device)) * self.embed_scaler)
 
         return embed
 
@@ -96,6 +95,7 @@ class VertexPolyGen(nn.Module):
         self.loss_func = nn.CrossEntropyLoss(ignore_index=model_config["tokenizer"]["pad_id"])
 
         self.apply(init_weights)
+
 
     def forward(self, tokens, device=None):
 
@@ -124,8 +124,9 @@ class VertexPolyGen(nn.Module):
         """
 
         hs = self.embedding(tokens)
+        
         hs = self.reformer(
-            hs, input_mask=tokens["padding_mask"]
+            hs, input_mask=tokens["padding_mask"].to(device)
         )
         hs = self.layernorm(hs)
 
@@ -164,8 +165,8 @@ class VertexPolyGen(nn.Module):
         acc = accuracy(
             hs, targets, ignore_label=self.tokenizer.pad_id, device=device
         )
-        print("+", hs.dtype, targets.dtype)
-        loss = self.loss_func(hs, targets)
+
+        loss = self.loss_func(hs, targets.to(device).long())
 
         if hasattr(self, 'reporter'):
             self.reporter.report({
