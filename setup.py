@@ -22,7 +22,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 
-REQUIRED_PACKAGES = ['numpy', 'pandas', 'torch', 'networkx', 'matplotlib', 'six']
+REQUIRED_PACKAGES = ['numpy', 'pandas', 'torch', 'networkx', 'matplotlib', 'six', 'scikit-learn']
 
 setup(
     name='polygen',
