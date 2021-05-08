@@ -4,10 +4,11 @@ from torch.utils.data import DataLoader
 from models.VertexModel import VertexModel
 from reformer_pytorch import Reformer
 from experimetns.config import VertexConfig
+import os
 
 EPOCHS = 10
 GPU = True
-dataset_dir = r'C:\Users\ivank\UJ\Deep learining with multiple tasks\projects\ShapeNetCore_PolyGenSubset\train'
+dataset_dir = os.path.join(os.getcwd(), 'data', 'shapenet_samples')
 config = VertexPolyGenConfig(embed_dim=128, reformer__depth=6,
                              reformer__lsh_dropout=0.,
                              reformer__ff_dropout=0.,
@@ -20,12 +21,12 @@ else:
     device = None
 
 training_data = dl.VerticesDataset(root_dir=dataset_dir,
-                                   classes=['basket'],
                                    transform=[SortVertices(),
                                               NormalizeVertices(),
                                               QuantizeVertices(),
                                               ToTensor(),
-                                              ResizeVertices(500)],
+                                              ResizeVertices(800),
+                                              ResizeVertices(801)],
                                    split='train',
                                    train_percentage=0.925)
 train_dataloader = DataLoader(training_data, batch_size=2, shuffle=True)
@@ -46,4 +47,3 @@ for epoch in range(EPOCHS):
         loss.backward()
         optimizer.step()
     print(f"Epoch {epoch}: loss {total_loss}")
-
