@@ -23,7 +23,8 @@ else:
     device = None
 
 training_data = dl.VerticesDataset(**config['train_dataset'])
-train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
+print(len(training_data))
+train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True, num_workers=16)
 
 #decoder = Reformer(**config['reformer'])
 model = VertexPolyGen(config, device=device).to(device)
@@ -33,14 +34,17 @@ model.train()
 for epoch in range(EPOCHS):
     total_loss = 0.0
     total_acc = 0.0
+    amount = 1
     for i, batch in enumerate(train_dataloader):
+        print("=", end="")
         optimizer.zero_grad()
         loss, acc = model(batch, device)
         if np.isnan(loss.item()):
             print(f"(E): Model return loss {loss.item()}")
-        total_loss += loss.item() / batch_size
-        total_acc += acc.item() / batch_size
+        total_loss += loss.item()
+        total_acc += acc.item() 
+        amount += batch_size
         loss.backward()
         optimizer.step()
-    print(f"Epoch : {epoch}, loss : {np.mean(total_loss)}, acc : {np.mean(total_acc)}")
+    print(f"\nEpoch : {epoch}, loss : {total_loss / amount}, acc : {total_acc / amount}")
 

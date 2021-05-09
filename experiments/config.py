@@ -42,7 +42,7 @@ class VertexConfig(Config):
                           ResizeVertices(799)
                           ],
             "split": 'train',
-            "train_percentage": 0.09
+            "train_percentage": 0.9
 
         }
 
