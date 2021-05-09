@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 def dequantize_vertices(vertices, *, n_bits=8, add_noise=False):
@@ -38,42 +39,21 @@ def top_p_logits(logits, p):
     """
     Masks logits using nucleus (top-p) sampling.
     """
-    def scatter_nd(indices, updates, shape):
-        """
-        PyTorch Implementation of the `tf.scatter_nd` function.
-        """
-        ret = torch.zeros(*shape, dtype=updates.dtype, device=updates.device)
-        ndim = indices.size(-1)
-        output_shape = list(indices.shape[:-1]) + shape[indices.shape[-1]:]
-        print(indices.shape, ndim)
-        flatted_indices = torch.reshape(indices, (-1, ndim))
-        slices = [flatted_indices[:, i] for i in range(ndim)]
-        slices += [Ellipsis]
-        ret[slices] = updates.view(*output_shape)
-        return ret
-
     if not isinstance(logits, torch.Tensor):
         logits = torch.Tensor(logits).to(dtype=torch.float32)
 
-    if p == 0:
+    if p > 0:
+        sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+
+        sorted_indices_to_remove = cumulative_probs > p
+
+        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+        sorted_indices_to_remove[..., 0] = 0
+
+        indices_to_remove = sorted_indices[sorted_indices_to_remove]
+        logits[indices_to_remove] = -1e+9
         return logits
-    _, seq, dim = logits.shape
-    logits = torch.reshape(logits, (-1, dim))
-    sort_indices = torch.argsort(logits, dim=-1, descending=True)
-    probs = torch.softmax(logits, dim=0).gather(dim=1, index=sort_indices)
-    cumprobs = torch.cumsum(probs, dim=-1)
-    sort_mask = torch.greater(cumprobs, p).to(dtype=torch.int64)
-    batch_indices = torch.tile(
-        torch.range(0, logits.size(0) - 1).unsqueeze(-1), dims=[1, dim]
-    ).to(dtype=torch.int64)
-    top_p_mask = scatter_nd(
-        indices=torch.stack([batch_indices, sort_indices], dim=-1),
-        updates=sort_mask,
-        shape=list(logits.shape)
-    )
-    print("torch", top_p_mask)
-    logits -= top_p_mask * 1e9
-    return torch.reshape(logits, (-1, seq, dim))
 
 
 class VertexModel(nn.Module):
@@ -157,10 +137,10 @@ class VertexModel(nn.Module):
         else:
             zero_embed_tiled = self.global_context_embedding(targets)[:, None]
 
-        embed_input = torch.range(seq_length)
+        embed_input = torch.arange(0, seq_length).long()
         coord_embeddings = self.coord_embeddings(embed_input % 3)
         pos_embeddings = self.pos_embeddings(embed_input // 3)
-        vert_embeddings = self.vert_embedding(vertices)
+        vert_embeddings = self.vert_embedding(vertices.long())
         embeddings = vert_embeddings + coord_embeddings + pos_embeddings
 
         return torch.cat([zero_embed_tiled, embeddings], dim=1)
