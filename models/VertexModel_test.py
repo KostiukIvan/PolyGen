@@ -175,7 +175,7 @@ class VertexPolyGen(nn.Module):
                 "loss": loss.item(),
             })
 
-        return loss
+        return loss, acc
 
     @torch.no_grad()
     def predict(self, max_seq_len=2400, device=None):
