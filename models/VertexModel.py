@@ -16,39 +16,62 @@ def dequantize_vertices(vertices, *, n_bits=8, add_noise=False):
         vertices += np.random.uniform(size=vertices.shape) * (1 / range_quantize)
     return vertices
 
+
 # Those top functions aren't used with default values used in `VertexModel`
 def top_k_logits(logits, k):
     """
     Masks logits such that logits not in top-k are small.
     """
+    if not isinstance(logits, torch.Tensor):
+        logits = torch.Tensor(logits).to(dtype=torch.float32)
+
     if k == 0:
         return logits
-
     values, _ = torch.topk(logits, k)
-    k_largest = torch.min(logits)
+    k_largest = torch.min(values, dim=-2)[0].min()
     return torch.where(torch.le(logits, k_largest),
-                       torch.ones_like(logits) * -1e-9, logits)
+                       torch.ones_like(logits) * -1e9, logits)
 
 
-# TODO check if works as tensorflow version
+# TODO does not work as tf version - probably needs to implemented from scratch [ look up top-p sampling]
 def top_p_logits(logits, p):
     """
     Masks logits using nucleus (top-p) sampling.
     """
+    def scatter_nd(indices, updates, shape):
+        """
+        PyTorch Implementation of the `tf.scatter_nd` function.
+        """
+        ret = torch.zeros(*shape, dtype=updates.dtype, device=updates.device)
+        ndim = indices.size(-1)
+        output_shape = list(indices.shape[:-1]) + shape[indices.shape[-1]:]
+        print(indices.shape, ndim)
+        flatted_indices = torch.reshape(indices, (-1, ndim))
+        slices = [flatted_indices[:, i] for i in range(ndim)]
+        slices += [Ellipsis]
+        ret[slices] = updates.view(*output_shape)
+        return ret
+
+    if not isinstance(logits, torch.Tensor):
+        logits = torch.Tensor(logits).to(dtype=torch.float32)
+
     if p == 0:
         return logits
-    seq, dim = logits.shape
+    _, seq, dim = logits.shape
     logits = torch.reshape(logits, (-1, dim))
     sort_indices = torch.argsort(logits, dim=-1, descending=True)
-    probs = torch.gather(torch.softmax(logits), sort_indices, dim=1)
+    probs = torch.softmax(logits, dim=0).gather(dim=1, index=sort_indices)
     cumprobs = torch.cumsum(probs, dim=-1)
-    sort_mask = torch.greater(cumprobs, p).to(dtype=logits.dtype)
+    sort_mask = torch.greater(cumprobs, p).to(dtype=torch.int64)
     batch_indices = torch.tile(
-        torch.range(logits.size(0)).expand(1, dim)
+        torch.range(0, logits.size(0) - 1).unsqueeze(-1), dims=[1, dim]
+    ).to(dtype=torch.int64)
+    top_p_mask = scatter_nd(
+        indices=torch.stack([batch_indices, sort_indices], dim=-1),
+        updates=sort_mask,
+        shape=list(logits.shape)
     )
-    top_p_mask = torch.scatter(
-        index=torch.stack([batch_indices, sort_indices], dim=-1), input=sort_mask
-    )
+    print("torch", top_p_mask)
     logits -= top_p_mask * 1e9
     return torch.reshape(logits, (-1, seq, dim))
 
@@ -142,7 +165,7 @@ class VertexModel(nn.Module):
 
         return torch.cat([zero_embed_tiled, embeddings], dim=1)
 
-    def forward(self, vertices, targets, *,
+    def forward(self, vertices, *, targets=None,
                 top_k=0, top_p=1):
         """
         Forward pass of VertexModel.
@@ -155,8 +178,12 @@ class VertexModel(nn.Module):
         -------
         torch.Tensor
             Predictive distribution of shape [batch_size, seq_len]/
-        targets: torch.Tensor
+        targets: torch.Tensor, optional
             Tensor of labels required if `class_conditional` is True.
+        top_k: int, optional
+            Number of tokens to keep from top-k sampling.
+        top_p: float, optional
+            Proportion of probability mass to keep for top-p sampling.
         """
         outputs = self.decoder(self._embed_inputs(vertices, targets))
 
@@ -166,3 +193,43 @@ class VertexModel(nn.Module):
         logits = top_p_logits(logits, top_p)
 
         return logits
+
+    def sample(self, num_samples, *,
+               context=None, max_sample_length=None, top_k=0, top_p=1, recenter_verts=True, only_return_complete=True):
+        """
+        Autoregressive sampling with caching.
+
+        Parameters
+        ----------
+        num_samples: int
+            Number of samples to produce.
+        context:  torch.Tensor, optional
+            Tensor of labels - provide class context to a model.
+        max_sample_length: int
+            Max len of sampled vertex sequences. Sequences that do not complete are truncated.
+        top_k: int, optional
+            Number of tokens to keep from top-k sampling.
+        top_p: float, optional
+            Proportion of probability mass to keep for top-p sampling.
+        recenter_verts: bool, optional
+            Center vertex samples around origin. (should be used if trained using shift augmentation)
+        only_return_complete: bool, optional
+            Determines if only completed samples should be returned.
+
+        Returns
+        -------
+        dict
+            Dictionary containing the following fields:
+                - 'completed': Boolean tensor of shape [num_samples]. If True then
+                   corresponding sample completed within max_sample_length.
+                - 'vertices': Tensor of samples with shape [num_samples, num_verts, 3].
+                - 'num_vertices': Tensor indicating number of vertices for each example
+                                  in padded vertex samples.
+                'vertices_mask': Tensor of shape [num_samples, num_verts] that masks
+                                 corresponding invalid elements in 'vertices'.
+        """
+        if context is not None:
+            global_context = self.global_context_embedding(context).detach()
+            num_samples = torch.min(num_samples, global_context.size(0))
+
+        # TODO implement
