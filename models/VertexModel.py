@@ -145,9 +145,10 @@ class VertexModel(nn.Module):
         targets: torch.Tensor
             Tensor of labels required if `class_conditional` is True.
         """
-        # note: remove last element as it is not used for predictions
+        # note: remove last element as it is not used for predictions + flatten the vertices
+        vertices = vertices.view(vertices.size(0), vertices.size(1) * vertices.size(2))
         vertices = vertices[:, :-1]
-        batch_size, seq_length = vertices.size()
+        batch_size, seq_length = vertices.size(0), vertices.size(1)
 
         if self.global_context_embedding is None:
             # TODO - check if works as `tf.get_variable`

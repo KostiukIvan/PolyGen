@@ -29,30 +29,31 @@ training_data = dl.VerticesDataset(root_dir=dataset_dir,
                                               ResizeVertices(800),
                                               ResizeVertices(801)],
                                    split='train',
+                                   classes=None,
                                    train_percentage=0.925)
 train_dataloader = DataLoader(training_data, batch_size=2, shuffle=True)
 
 decoder = Reformer(**config['reformer']).to(device)
 model = VertexModel(decoder,
-                    embedding_dim=config['reformer']['embed_dim'],
+                    embedding_dim=config['reformer']['dim'],
                     quantization_bits=8,
-                    class_conditional=True,
-                    num_classes=4,
+                    class_conditional=False,
                     max_num_input_verts=250
                     ).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
-loss_fn = nn.CrossEntropyLossig(ignore_index=config['tokenizer']['pad_id'])
+loss_fn = nn.CrossEntropyLoss(ignore_index=config['tokenizer']['pad_id'])
 
-for epoch in range(EPOCHS):
-    total_loss = 0.0
-    for i, batch in enumerate(train_dataloader):
-        model.train()
-        optimizer.zero_grad()
-        out = model(*batch)
-        loss = loss_fn()  # TODO Need tokenizer to acquire targets.
-        if np.isnan(loss.item()):
-            print(f"(E): Model return loss {loss.item()}")
-        total_loss += loss.item()
-        loss.backward()
-        optimizer.step()
-    print(f"Epoch {epoch}: loss {total_loss}")
+if __name__ == "__main__":
+    for epoch in range(EPOCHS):
+        total_loss = 0.0
+        for i, batch in enumerate(train_dataloader):
+            model.train()
+            optimizer.zero_grad()
+            out = model(batch)
+            loss = loss_fn(out, batch)
+            if np.isnan(loss.item()):
+                print(f"(E): Model return loss {loss.item()}")
+            total_loss += loss.item()
+            loss.backward()
+            optimizer.step()
+        print(f"Epoch {epoch}: loss {total_loss}")
