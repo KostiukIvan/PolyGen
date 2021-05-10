@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import random
 
 
 def dequantize_vertices(vertices, *, n_bits=8, add_noise=False):
@@ -55,6 +56,22 @@ def top_p_logits(logits, p):
         logits[indices_to_remove] = -1e+9
         return logits
 
+def sample_top_p(logits, top_p):
+    """
+    Samples random index of logits tensor using top-p sampling
+    Args:
+        logits (Tensor): logits distribution
+        top_p (float): p value of sampling (0 <= p <= 1)
+    Returns:
+        Tensor: randomly picked index
+    """
+    sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+    cumsum = torch.cumsum(sorted_logits, dim=-1)
+    tensors_amount_to_remove = len(sorted_indices[cumsum >= top_p])
+    if tensors_amount_to_remove > 0:
+        tensors_amount_to_remove -= 1
+    indices_to_pick_from = sorted_indices if tensors_amount_to_remove == 0 else sorted_indices[:-tensors_amount_to_remove]
+    return indices_to_pick_from[random.randint(0, len(indices_to_pick_from) - 1)]
 
 class VertexModel(nn.Module):
     """
