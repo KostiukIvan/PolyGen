@@ -1,10 +1,10 @@
 from data_utils.transformations import *
 import numpy as np
-import pandas as pd
-from os import listdir
+import os
 from os.path import join
 from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split
+
 
 class VerticesDataset(Dataset):
     def __init__(self,
@@ -29,9 +29,8 @@ class VerticesDataset(Dataset):
             for augmentation_dir in os.listdir(join(root_dir, class_name)):
                 for augmented_mesh_file in os.listdir(join(root_dir, class_name, augmentation_dir)):
                     file_paths.append(join(root_dir, class_name, augmentation_dir, augmented_mesh_file))
-        self.X_train, self.X_valid = train_test_split(file_paths, test_size = 1 - train_percentage, shuffle=True)
+        self.X_train, self.X_valid = train_test_split(file_paths, test_size=1 - train_percentage, shuffle=True)
                 
-
     def __len__(self):
         if self.split not in {'train', 'valid'}:
             raise ValueError('Invalid split. Should be train or valid.')

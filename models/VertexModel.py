@@ -56,6 +56,7 @@ def top_p_logits(logits, p):
         logits[indices_to_remove] = -1e+9
         return logits
 
+
 def sample_top_p(logits, top_p):
     """
     Samples random index of logits tensor using top-p sampling
@@ -73,6 +74,7 @@ def sample_top_p(logits, top_p):
     indices_to_pick_from = sorted_indices if tensors_amount_to_remove == 0 else sorted_indices[:-tensors_amount_to_remove]
     return indices_to_pick_from[random.randint(0, len(indices_to_pick_from) - 1)]
 
+
 class VertexModel(nn.Module):
     """
     Autoregressive generative model of quantized mesh vertices.
@@ -86,8 +88,8 @@ class VertexModel(nn.Module):
 
     def __init__(self,
                  decoder,
-                 hidden_size,
-                 quantization_bits, *,
+                 embedding_dim,
+                 quantization_bits,
                  class_conditional=False,
                  num_classes=55,
                  max_num_input_verts=2500,
@@ -97,7 +99,7 @@ class VertexModel(nn.Module):
         ----------
         decoder: dict
             TransformerDecoder object.
-        hidden_size: int
+        embedding_dim: int
             Value taken from TransformerDecoder and it determines used embedding dim.
         quantization_bits: int
             Determines number of quantization used in mesh preprocessing.
@@ -112,7 +114,7 @@ class VertexModel(nn.Module):
         """
         super().__init__()
         self.decoder = decoder
-        self.embedding_dim = hidden_size
+        self.embedding_dim = embedding_dim
         self.class_conditional = class_conditional
         self.num_classes = num_classes
         self.max_num_input_verts = max_num_input_verts

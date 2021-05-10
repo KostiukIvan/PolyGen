@@ -1,19 +1,20 @@
+import torch.nn as nn
+
 import data_utils.dataloader as dl
 from data_utils.transformations import *
 from torch.utils.data import DataLoader
 from models.VertexModel import VertexModel
 from reformer_pytorch import Reformer
-from experimetns.config import VertexConfig
+from config import VertexConfig
 import os
 
 EPOCHS = 10
 GPU = True
 dataset_dir = os.path.join(os.getcwd(), 'data', 'shapenet_samples')
-config = VertexPolyGenConfig(embed_dim=128, reformer__depth=6,
-                             reformer__lsh_dropout=0.,
-                             reformer__ff_dropout=0.,
-                             reformer__post_attn_dropout=0.)
-
+config = VertexConfig(embed_dim=128, reformer__depth=6,
+                      reformer__lsh_dropout=0.,
+                      reformer__ff_dropout=0.,
+                      reformer__post_attn_dropout=0.)
 
 if GPU and torch.cuda.is_available():
     device = torch.device('cuda')
@@ -31,16 +32,24 @@ training_data = dl.VerticesDataset(root_dir=dataset_dir,
                                    train_percentage=0.925)
 train_dataloader = DataLoader(training_data, batch_size=2, shuffle=True)
 
-decoder = Reformer(**config['reformer'])
-model = VertexModel(decoder, ...)
+decoder = Reformer(**config['reformer']).to(device)
+model = VertexModel(decoder,
+                    embedding_dim=config['reformer']['embed_dim'],
+                    quantization_bits=8,
+                    class_conditional=True,
+                    num_classes=4,
+                    max_num_input_verts=250
+                    ).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
+loss_fn = nn.CrossEntropyLossig(ignore_index=config['tokenizer']['pad_id'])
 
 for epoch in range(EPOCHS):
     total_loss = 0.0
     for i, batch in enumerate(train_dataloader):
         model.train()
         optimizer.zero_grad()
-        loss = model(*batch, device=device)
+        out = model(*batch)
+        loss = loss_fn()  # TODO Need tokenizer to acquire targets.
         if np.isnan(loss.item()):
             print(f"(E): Model return loss {loss.item()}")
         total_loss += loss.item()
