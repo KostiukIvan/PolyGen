@@ -2,6 +2,8 @@ import torch.nn as nn
 
 import data_utils.dataloader as dl
 from data_utils.transformations import *
+from data_utils.transformations import detokenize, extract_vert_values_from_tokens
+from data_utils.visualisation import plot_results
 from torch.utils.data import DataLoader
 from models.VertexModel import VertexModel
 from reformer_pytorch import Reformer
@@ -50,8 +52,14 @@ if __name__ == "__main__":
         for i, batch in enumerate(train_dataloader):
             model.train()
             optimizer.zero_grad()
-            out = model(batch[0])
-            loss = loss_fn(out[:, :, 0], batch[0][:, 0])
+            data = batch[0].to(device)
+            out = model(data)
+            
+            sample = out[0].cpu()
+            sample = extract_vert_values_from_tokens(sample)
+            plot_results(sample)
+            
+            loss = loss_fn(out[:, :, 0], data[:, 0])
             if np.isnan(loss.item()):
                 print(f"(E): Model return loss {loss.item()}")
             total_loss += loss.item()

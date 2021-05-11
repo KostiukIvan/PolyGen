@@ -85,3 +85,14 @@ class VertexTokenizer:
             position_tokens = pad(position_tokens, (0, amount_to_pad), value=0)
         
         return torch.stack([vertices_tokens, axises_tokens, position_tokens])
+
+
+def detokenize(vertices_tokens):
+    return torch.reshape(vertices_tokens, shape=(-1, 3))
+
+def extract_vert_values_from_tokens(vert_tokens):
+    vert_tokens = torch.max(vert_tokens, dim=1)[1]
+    vertices = detokenize(vert_tokens)
+    vertices = vertices.float()
+    vertices /= 256
+    return vertices
