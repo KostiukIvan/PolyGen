@@ -10,7 +10,7 @@ from reformer_pytorch import Reformer
 from config import VertexConfig
 import os
 
-EPOCHS = 10
+EPOCHS = 2000
 GPU = True
 dataset_dir = os.path.join(os.getcwd(), 'data', 'shapenet_samples')
 config = VertexConfig(embed_dim=128, reformer__depth=6,
@@ -54,10 +54,11 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             data = batch[0].to(device)
             out = model(data)
-            
-            sample = out[0].cpu()
-            sample = extract_vert_values_from_tokens(sample)
-            plot_results(sample)
+
+            if epoch % 100 == 0:
+                sample = out[0].cpu()
+                sample = extract_vert_values_from_tokens(sample)
+                plot_results(sample, f"object_{epoch}.png")
             
             loss = loss_fn(out[:, :, 0], data[:, 0])
             if np.isnan(loss.item()):
