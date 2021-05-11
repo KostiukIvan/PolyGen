@@ -126,44 +126,31 @@ class VertexModel(nn.Module):
             num_embeddings=self.num_classes,
             embedding_dim=self.embedding_dim
         ) if self.class_conditional else None
-        self.coord_embeddings = nn.Embedding(3, self.embedding_dim)
+        self.coord_embeddings = nn.Embedding(self.max_num_input_verts, self.embedding_dim)
         self.pos_embeddings = nn.Embedding(self.max_num_input_verts, self.embedding_dim)
         if use_discrete_embeddings:
-            self.vert_embedding = nn.Embedding(2 ** self.quantization_bits + 1, self.embedding_dim)
+            self.vert_embedding = nn.Embedding(self.max_num_input_verts, self.embedding_dim)
         else:
             self.vert_embedding = nn.Linear(max_num_input_verts, self.embedding_dim)
         self.project_to_logits = nn.Linear(self.embedding_dim, 2 ** self.quantization_bits + 1)
 
     def _embed_inputs(self, vertices, targets=None):
         """
-        Embeds flat vertices and adds position and coordinate information.
+        Embeds vertex positions, values and coordinate info
 
         Parameters
         ----------
         vertices: torch.Tensor
-            Flat vertices of shape [batch_size, max_sequence_length]
+            Vertices of shape [batch_size, max_sequence_length, 3]
         targets: torch.Tensor
+            TODO: make use of it in the future
             Tensor of labels required if `class_conditional` is True.
         """
-        # note: remove last element as it is not used for predictions + flatten the vertices
-        vertices = vertices.view(vertices.size(0), vertices.size(1) * vertices.size(2))
-        vertices = vertices[:, :-1]
-        batch_size, seq_length = vertices.size(0), vertices.size(1)
-
-        if self.global_context_embedding is None:
-            # TODO - check if works as `tf.get_variable`
-            zero_embed = torch.zeros((1, 1, self.embedding_dim))
-            zero_embed_tiled = torch.tile(zero_embed, (batch_size, 1, 1))
-        else:
-            zero_embed_tiled = self.global_context_embedding(targets)[:, None]
-
-        embed_input = torch.arange(0, seq_length).long()
-        coord_embeddings = self.coord_embeddings(embed_input % 3)
-        pos_embeddings = self.pos_embeddings(embed_input // 3)
-        vert_embeddings = self.vert_embedding(vertices.long())
-        embeddings = vert_embeddings + coord_embeddings + pos_embeddings
-
-        return torch.cat([zero_embed_tiled, embeddings], dim=1)
+        coord_embeddings = self.coord_embeddings(vertices[:, :, 0].type(torch.LongTensor))
+        pos_embeddings = self.pos_embeddings(vertices[:, :, 1].type(torch.LongTensor))
+        vert_embeddings = self.vert_embedding(vertices[:, :, 2].type(torch.LongTensor))
+        
+        return torch.cat([coord_embeddings, pos_embeddings, vert_embeddings], dim=1)
 
     def forward(self, vertices, *, targets=None,
                 top_k=0, top_p=1):
@@ -185,6 +172,7 @@ class VertexModel(nn.Module):
         top_p: float, optional
             Proportion of probability mass to keep for top-p sampling.
         """
+        
         outputs = self.decoder(self._embed_inputs(vertices, targets))
 
         logits = self.project_to_logits(outputs)

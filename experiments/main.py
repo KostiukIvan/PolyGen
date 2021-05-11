@@ -26,8 +26,8 @@ training_data = dl.VerticesDataset(root_dir=dataset_dir,
                                               NormalizeVertices(),
                                               QuantizeVertices(),
                                               ToTensor(),
-                                              ResizeVertices(800),
-                                              ResizeVertices(801)],
+                                              ResizeVertices(799),
+                                              ResizeVertices(800)],
                                    split='train',
                                    classes=None,
                                    train_percentage=0.925)
@@ -49,8 +49,8 @@ if __name__ == "__main__":
         for i, batch in enumerate(train_dataloader):
             model.train()
             optimizer.zero_grad()
-            out = model(batch)
-            loss = loss_fn(out, batch)
+            out = model(batch[0])
+            loss = loss_fn(out, batch) #TODO: adjust shapes
             if np.isnan(loss.item()):
                 print(f"(E): Model return loss {loss.item()}")
             total_loss += loss.item()

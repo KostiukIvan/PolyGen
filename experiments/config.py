@@ -1,8 +1,3 @@
-class Config(object):
-    def __getitem__(self, key):
-        return self.config[key]
-
-
 class VertexConfig(Config):
 
     def __init__(self,
@@ -20,7 +15,7 @@ class VertexConfig(Config):
                  reformer__depth=12,
                  reformer__heads=8,
                  reformer__n_hashes=8,
-                 reformer__bucket_size=48,
+                 reformer__bucket_size=40,
                  reformer__causal=True,
                  reformer__lsh_dropout=0.2,
                  reformer__ff_dropout=0.2,
@@ -49,7 +44,7 @@ class VertexConfig(Config):
         reformer_config = {
             "dim": embed_dim,
             "depth": reformer__depth,
-            "max_seq_len": max_seq_len,
+#             "max_seq_len": max_seq_len,
             "heads": reformer__heads,
             "bucket_size": reformer__bucket_size,
             "n_hashes": reformer__n_hashes,
