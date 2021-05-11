@@ -1,3 +1,8 @@
+class Config(object):
+    def __getitem__(self, key):
+        return self.config[key]
+
+
 class VertexConfig(Config):
 
     def __init__(self,
