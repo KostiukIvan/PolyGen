@@ -20,7 +20,7 @@ if GPU and torch.cuda.is_available():
     device = torch.device('cuda')
 else:
     device = None
-
+"""
 training_data = dl.VerticesDataset(root_dir=dataset_dir,
                                    transform=[SortVertices(),
                                               NormalizeVertices(),
@@ -31,17 +31,18 @@ training_data = dl.VerticesDataset(root_dir=dataset_dir,
                                    split='train',
                                    classes=None,
                                    train_percentage=0.925)
-train_dataloader = DataLoader(training_data, batch_size=2, shuffle=True)
-
+"""
+training_data = dl.MeshesDataset("../meshes")
+train_dataloader = DataLoader(training_data, batch_size=4, shuffle=True)
 decoder = Reformer(**config['reformer']).to(device)
 model = VertexModel(decoder,
                     embedding_dim=config['reformer']['dim'],
                     quantization_bits=8,
                     class_conditional=False,
-                    max_num_input_verts=250
+                    max_num_input_verts=750
                     ).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
-loss_fn = nn.CrossEntropyLoss(ignore_index=config['tokenizer']['pad_id'])
+loss_fn = nn.MSELoss()
 
 if __name__ == "__main__":
     for epoch in range(EPOCHS):
@@ -50,7 +51,7 @@ if __name__ == "__main__":
             model.train()
             optimizer.zero_grad()
             out = model(batch[0])
-            loss = loss_fn(out, batch) #TODO: adjust shapes
+            loss = loss_fn(out[:, :, 0], batch[0][:, 0])
             if np.isnan(loss.item()):
                 print(f"(E): Model return loss {loss.item()}")
             total_loss += loss.item()

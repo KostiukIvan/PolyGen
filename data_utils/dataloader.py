@@ -3,7 +3,6 @@ import numpy as np
 import os
 from os.path import join
 from torch.utils.data import Dataset
-from torchvision.transforms import Lambda
 from sklearn.model_selection import train_test_split
 
 
@@ -70,9 +69,8 @@ class MeshesDataset(Dataset):
                             NormalizeVertices(),
                             QuantizeVertices(),
                             ToTensor(),
-                            ResizeVertices(800),
-                            VertexTokenizer(801),
-                            Lambda(lambda x: torch.flatten(x))]):
+                            ResizeVertices(250),
+                            VertexTokenizer(250)]):
         """
         Args:
             root_dir (string): Directory with all the ShapeNet data.

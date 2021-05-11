@@ -126,7 +126,8 @@ class VertexModel(nn.Module):
             num_embeddings=self.num_classes,
             embedding_dim=self.embedding_dim
         ) if self.class_conditional else None
-        self.coord_embeddings = nn.Embedding(self.max_num_input_verts, self.embedding_dim)
+
+        self.coord_embeddings = nn.Embedding(4, self.embedding_dim, padding_idx=0)
         self.pos_embeddings = nn.Embedding(self.max_num_input_verts, self.embedding_dim)
         if use_discrete_embeddings:
             self.vert_embedding = nn.Embedding(self.max_num_input_verts, self.embedding_dim)
@@ -146,11 +147,26 @@ class VertexModel(nn.Module):
             TODO: make use of it in the future
             Tensor of labels required if `class_conditional` is True.
         """
-        coord_embeddings = self.coord_embeddings(vertices[:, :, 0].type(torch.LongTensor))
-        pos_embeddings = self.pos_embeddings(vertices[:, :, 1].type(torch.LongTensor))
-        vert_embeddings = self.vert_embedding(vertices[:, :, 2].type(torch.LongTensor))
-        
-        return torch.cat([coord_embeddings, pos_embeddings, vert_embeddings], dim=1)
+        # note: remove last element as it is not used for predictions + flatten the vertices
+        # vertices = vertices.view(vertices.size(0), vertices.size(1) * vertices.size(2))
+        # vertices = vertices[:, :-1]
+        batch_size, seq_length = vertices.size(0), vertices.size(1)
+
+
+        # embed_input = torch.arange(0, seq_length).long()
+        coord_embeddings = self.coord_embeddings(vertices[:, 1].long())
+        pos_embeddings = self.pos_embeddings(vertices[:, 2].long())
+        vert_embeddings = self.vert_embedding(vertices[:, 0].long())
+        embeddings = vert_embeddings + coord_embeddings + pos_embeddings
+
+        if self.global_context_embedding is None:
+            # TODO - check if works as `tf.get_variable`
+            # zero_embed = torch.zeros((1, 1, self.embedding_dim))
+            # zero_embed_tiled = torch.tile(zero_embed, (batch_size, 1, 1))
+            return embeddings
+        else:
+            zero_embed_tiled = self.global_context_embedding(targets)[:, None]
+            return torch.cat([zero_embed_tiled, embeddings], dim=1)
 
     def forward(self, vertices, *, targets=None,
                 top_k=0, top_p=1):
