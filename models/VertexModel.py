@@ -193,8 +193,8 @@ class VertexModel(nn.Module):
 
         logits = self.project_to_logits(outputs)
         # logits /= temperature
-        logits = top_k_logits(logits, top_k)
-        logits = top_p_logits(logits, top_p)
+        # logits = top_k_logits(logits, top_k)
+        # logits = top_p_logits(logits, top_p)
 
         return logits
 

@@ -1,3 +1,4 @@
+import numpy as np
 import torch.nn as nn
 
 import data_utils.dataloader as dl
@@ -10,7 +11,7 @@ from reformer_pytorch import Reformer
 from config import VertexConfig
 import os
 
-EPOCHS = 10
+EPOCHS = 1000
 GPU = True
 dataset_dir = os.path.join(os.getcwd(), 'data', 'shapenet_samples')
 config = VertexConfig(embed_dim=128, reformer__depth=6,
@@ -47,18 +48,18 @@ optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
 loss_fn = nn.MSELoss()
 
 if __name__ == "__main__":
-    for epoch in range(EPOCHS):
+    for epoch in range(1, EPOCHS + 1):
         total_loss = 0.0
         for i, batch in enumerate(train_dataloader):
             model.train()
             optimizer.zero_grad()
             data = batch[0].to(device)
             out = model(data)
-            
-            sample = out[0].cpu()
-            sample = extract_vert_values_from_tokens(sample)
-            plot_results(sample)
-            
+
+            if epoch % 15 == 0:
+                sample = np.array([extract_vert_values_from_tokens(sample).numpy() for sample in out.cpu()])
+                plot_results(sample, f"objects_{epoch}.png")
+
             loss = loss_fn(out[:, :, 0], data[:, 0])
             if np.isnan(loss.item()):
                 print(f"(E): Model return loss {loss.item()}")
