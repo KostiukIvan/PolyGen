@@ -35,14 +35,18 @@ class NormalizeVertices:
 
 class QuantizeVertices:
     def __init__(self):
-        pass
+        self.bit=8
+        self.v_min=-1.
+        self.v_max=1.
 
     def __call__(self, vertices):
-        # quantize vertices to integers in range [0, 255]
-        n_vals = 2 ** 8
-        delta = 1. / n_vals
-        vertices = np.maximum(np.minimum((vertices // delta), n_vals - 1), 0).astype(np.int32)
-        return vertices
+        dynamic_range = 2 ** self.bit - 1
+        discrete_interval = (self.v_max-self.v_min) / (dynamic_range)#dynamic_range
+        offset = (dynamic_range) / 2
+        
+        vertices = vertices / discrete_interval + offset
+        vertices = np.clip(vertices, 0, dynamic_range-1)
+        return vertices.astype(np.int32)
 
 
 class ToTensor:

@@ -165,7 +165,7 @@ class VertexPolyGen(nn.Module):
         acc = accuracy(
             hs, targets, ignore_label=self.tokenizer.pad_id, device=device
         )
-
+        
         loss = self.loss_func(hs, targets.to(device).long())
 
         if hasattr(self, 'reporter'):
@@ -175,7 +175,7 @@ class VertexPolyGen(nn.Module):
                 "loss": loss.item(),
             })
 
-        return loss, acc
+        return loss, acc, hs
 
     @torch.no_grad()
     def predict(self, max_seq_len=2400, device=None):

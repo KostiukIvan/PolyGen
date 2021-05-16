@@ -35,14 +35,12 @@ class VertexConfig(Config):
         train_dataset_config = {
             "root_dir":  r"/mnt/users/ikostiuk/local/PolyGen/polygen_exports",
             "classes":   ['02691156'],
-            "transform": [SortVertices(),
-                          NormalizeVertices(),
-                          QuantizeVertices(),
-                          ToTensor(),
-                          ResizeVertices(799)
+            "transform": [QuantizeVertices(),
+                          SortVertices(),
+                          ToTensor()
                           ],
             "split": 'train',
-            "train_percentage": 0.9
+            "train_percentage": 0.1
 
         }
 
