@@ -92,8 +92,9 @@ class VertexModel(nn.Module):
                  quantization_bits,
                  class_conditional=False,
                  num_classes=55,
-                 max_num_input_verts=2500,
-                 use_discrete_embeddings=True):
+                 max_num_input_verts=1000,
+                 use_discrete_embeddings=True,
+                 device=None):
         """
         Parameters
         ----------
@@ -120,6 +121,7 @@ class VertexModel(nn.Module):
         self.max_num_input_verts = max_num_input_verts
         self.quantization_bits = quantization_bits
         self.use_discrete_embeddings = use_discrete_embeddings
+        self.device = device
 
         # prepare embeddings modules
         self.global_context_embedding = nn.Embedding(
@@ -128,14 +130,12 @@ class VertexModel(nn.Module):
         ) if self.class_conditional else None
 
         self.coord_embeddings = nn.Embedding(4, self.embedding_dim, padding_idx=0)
-        self.pos_embeddings = nn.Embedding(self.max_num_input_verts, self.embedding_dim)
-        if use_discrete_embeddings:
-            self.vert_embedding = nn.Embedding(self.max_num_input_verts, self.embedding_dim)
-        else:
-            self.vert_embedding = nn.Linear(max_num_input_verts, self.embedding_dim)
-        self.project_to_logits = nn.Linear(self.embedding_dim, 2 ** self.quantization_bits + 1)
+        self.pos_embeddings = nn.Embedding(self.max_num_input_verts, self.embedding_dim, padding_idx=0)
+        self.vert_embedding = nn.Embedding(self.embedding_dim + 3, self.embedding_dim, padding_idx=2)
 
-    def _embed_inputs(self, vertices, targets=None):
+        self.project_to_logits = nn.LayerNorm(self.embedding_dim) # ???
+
+    def _embed_inputs(self, batch_d, targets=None):
         """
         Embeds vertex positions, values and coordinate info
 
@@ -150,14 +150,17 @@ class VertexModel(nn.Module):
         # note: remove last element as it is not used for predictions + flatten the vertices
         # vertices = vertices.view(vertices.size(0), vertices.size(1) * vertices.size(2))
         # vertices = vertices[:, :-1]
-        batch_size, seq_length = vertices.size(0), vertices.size(1)
+        #batch_size, seq_length = vertices.size(0), vertices.size(1)
 
 
         # embed_input = torch.arange(0, seq_length).long()
-        coord_embeddings = self.coord_embeddings(vertices[:, 1].long())
-        pos_embeddings = self.pos_embeddings(vertices[:, 2].long())
-        vert_embeddings = self.vert_embedding(vertices[:, 0].long())
+        #print(batch_d['vertices_tokens'].size(), batch_d['axises_tokens'].size(), batch_d['position_tokens'].size())
+        coord_embeddings = self.coord_embeddings(batch_d['axises_tokens'].long().to(self.device))
+        pos_embeddings = self.pos_embeddings(batch_d['position_tokens'].long().to(self.device))
+        vert_embeddings = self.vert_embedding(batch_d['vertices_tokens'].long().to(self.device))
         embeddings = vert_embeddings + coord_embeddings + pos_embeddings
+
+        return embeddings
 
         if self.global_context_embedding is None:
             # TODO - check if works as `tf.get_variable`
@@ -168,7 +171,7 @@ class VertexModel(nn.Module):
             zero_embed_tiled = self.global_context_embedding(targets)[:, None]
             return torch.cat([zero_embed_tiled, embeddings], dim=1)
 
-    def forward(self, vertices, *, targets=None,
+    def forward(self, batch_d, *, targets=None,
                 top_k=0, top_p=1):
         """
         Forward pass of VertexModel.
@@ -188,15 +191,16 @@ class VertexModel(nn.Module):
         top_p: float, optional
             Proportion of probability mass to keep for top-p sampling.
         """
-        
-        outputs = self.decoder(self._embed_inputs(vertices, targets))
 
-        logits = self.project_to_logits(outputs)
+        embed = self._embed_inputs(batch_d)
+        outputs = self.decoder(embed)
+
+        outputs = self.project_to_logits(outputs)
         # logits /= temperature
         # logits = top_k_logits(logits, top_k)
         # logits = top_p_logits(logits, top_p)
 
-        return logits
+        return outputs
 
     def sample(self, num_samples, *,
                context=None, max_sample_length=None, top_k=0, top_p=1, recenter_verts=True, only_return_complete=True):

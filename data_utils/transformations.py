@@ -70,29 +70,40 @@ class ResizeVertices:
 
 
 class VertexTokenizer:
-    def __init__(self, max_seq_len):
-        self.max_seq_len = max_seq_len - 1 # make one slot left for eos token
+    def __init__(self, max_seq_len=1200):
+        self.max_seq_len = max_seq_len - 2 # make one slot left for eos token
+        self.tokens = {
+            'bos': torch.tensor([0]),
+            'pad': torch.tensor([1]),
+            'eos': torch.tensor([2]),
+        }
     
     def __call__(self, vertices):
-        vertices_tokens = torch.flatten(vertices) + 1
-        axises_tokens = torch.arange(len(vertices_tokens)) % 3 + 1
-        position_tokens = torch.arange(len(vertices_tokens)) // 3 + 1
+        vertices_tokens = torch.flatten(vertices)
+        axises_tokens = torch.arange(len(vertices_tokens)) % 3
+        position_tokens = torch.arange(len(vertices_tokens)) // 3
         
-        if len(vertices) < self.max_seq_len:
-            amount_to_pad = self.max_seq_len * 3 - len(vertices) * 3
-            vertices_tokens = pad(vertices_tokens, (0, amount_to_pad), value=0)
-            axises_tokens = pad(axises_tokens, (0, amount_to_pad), value=0)
-            position_tokens = pad(position_tokens, (0, amount_to_pad), value=0)
-        
-        return torch.stack([vertices_tokens, axises_tokens, position_tokens])
+        if len(vertices_tokens) < self.max_seq_len:
+            amount_to_pad = self.max_seq_len - len(vertices_tokens)
+            vertices_tokens = pad(vertices_tokens, (0, amount_to_pad), value=self.tokens['pad'][0])
+            axises_tokens = pad(axises_tokens, (0, amount_to_pad), value=self.tokens['pad'][0])
+            position_tokens = pad(position_tokens, (0, amount_to_pad), value=self.tokens['pad'][0])
+
+        vertices_tokens = torch.cat([self.tokens['bos'], vertices_tokens, self.tokens['eos']])
+        axises_tokens = torch.cat([self.tokens['bos'], axises_tokens, self.tokens['eos']])
+        position_tokens = torch.cat([self.tokens['bos'], position_tokens, self.tokens['eos']])
+
+        return {"vertices_tokens": vertices_tokens,
+                "axises_tokens": axises_tokens,
+                "position_tokens": position_tokens}
 
 
 def detokenize(vertices_tokens):
     return torch.reshape(vertices_tokens, shape=(-1, 3))
 
-def extract_vert_values_from_tokens(vert_tokens):
-    vert_tokens = torch.max(vert_tokens, dim=1)[1]
-    vertices = detokenize(vert_tokens)
+def extract_vert_values_from_tokens(vert_tokens, seq_len=2400):
+    vert_tokens = torch.max(vert_tokens[1:(seq_len - 1),:], dim=1)[1]
+    vertices = detokenize(vert_tokens[: ((seq_len - 2) // 3) * 3])
     vertices = vertices.float()
     vertices /= 256
     return vertices

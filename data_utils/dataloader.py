@@ -21,7 +21,12 @@ class VerticesDataset(Dataset):
     def __init__(self,
                 root_dir,
                 classes,
-                transform=[SortVertices(), NormalizeVertices(), QuantizeVertices(), ToTensor(), ResizeVertices(800), VertexTokenizer(801)],
+                transform=[SortVertices(),
+                            NormalizeVertices(),
+                            QuantizeVertices(),
+                            ToTensor(),
+                            #ResizeVertices(600),
+                            VertexTokenizer(2400)],
                 split='train',
                 train_percentage=0.925):
         """
@@ -59,7 +64,7 @@ class VerticesDataset(Dataset):
             for trans in self.transform:
                 vertices = trans(vertices)
 
-        return vertices, class_idx
+        return vertices
 
 
 class MeshesDataset(Dataset):
@@ -69,8 +74,8 @@ class MeshesDataset(Dataset):
                             NormalizeVertices(),
                             QuantizeVertices(),
                             ToTensor(),
-                            ResizeVertices(250),
-                            VertexTokenizer(250)]):
+                            #ResizeVertices(600),
+                            VertexTokenizer(2400)]):
         """
         Args:
             root_dir (string): Directory with all the ShapeNet data.
@@ -94,7 +99,7 @@ class MeshesDataset(Dataset):
             for trans in self.transform:
                 vertices = trans(vertices)
 
-        return vertices, class_idx
+        return vertices
 
 
 if __name__ == "__main__":
