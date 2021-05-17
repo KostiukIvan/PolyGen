@@ -71,7 +71,7 @@ class ResizeVertices:
 
 class VertexTokenizer:
     def __init__(self, max_seq_len=1200):
-        self.max_seq_len = max_seq_len - 2 # make one slot left for eos token
+        self.max_seq_len = max_seq_len - 2  # make one slot left for eos token
         self.tokens = {
             'bos': torch.tensor([0]),
             'pad': torch.tensor([1]),

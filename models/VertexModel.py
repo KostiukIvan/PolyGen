@@ -147,14 +147,7 @@ class VertexModel(nn.Module):
             TODO: make use of it in the future
             Tensor of labels required if `class_conditional` is True.
         """
-        # note: remove last element as it is not used for predictions + flatten the vertices
-        # vertices = vertices.view(vertices.size(0), vertices.size(1) * vertices.size(2))
-        # vertices = vertices[:, :-1]
-        #batch_size, seq_length = vertices.size(0), vertices.size(1)
 
-
-        # embed_input = torch.arange(0, seq_length).long()
-        #print(batch_d['vertices_tokens'].size(), batch_d['axises_tokens'].size(), batch_d['position_tokens'].size())
         coord_embeddings = self.coord_embeddings(batch_d['axises_tokens'].long().to(self.device))
         pos_embeddings = self.pos_embeddings(batch_d['position_tokens'].long().to(self.device))
         vert_embeddings = self.vert_embedding(batch_d['vertices_tokens'].long().to(self.device))

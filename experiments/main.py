@@ -23,7 +23,7 @@ if GPU and torch.cuda.is_available():
     device = torch.device('cuda')
 else:
     device = None
-"""
+
 training_data = dl.VerticesDataset(root_dir=r"C:\Users\ivank\UJ\Deep learining with multiple tasks\projects\PolyGen\data\shapenet_samples\\",
                                    transform=[SortVertices(),
                                         NormalizeVertices(),
@@ -36,8 +36,9 @@ training_data = dl.VerticesDataset(root_dir=r"C:\Users\ivank\UJ\Deep learining w
                                    train_percentage=0.925)
 """
 training_data = dl.MeshesDataset("./meshes")
-
-train_dataloader = DataLoader(training_data, batch_size=1, shuffle=True)
+"""
+train_dataloader = DataLoader(training_data, batch_size=2, shuffle=True)
+print(len(training_data))
 decoder = Reformer(**config['reformer']).to(device)
 model = VertexModel(decoder,
                     embedding_dim=config['reformer']['dim'],
@@ -59,13 +60,12 @@ if __name__ == "__main__":
             target = batch['vertices_tokens'].to(device)
             out = model(data)
 
-            if epoch % 10 == 0:
+            if i % 2 == 0:
                 sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
-                plot_results(sample, f"objects_{epoch}.png")
+                plot_results(sample, f"objects_{epoch}_{i}.png")
             out = torch.transpose(out, 1, 2)
+
             loss = loss_fn(out, target)
-            if np.isnan(loss.item()):
-                print(f"(E): Model return loss {loss.item()}")
             total_loss += loss.item()
             loss.backward()
             optimizer.step()
