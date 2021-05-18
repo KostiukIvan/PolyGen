@@ -10,6 +10,7 @@ from models.VertexModel import VertexModel
 from reformer_pytorch import Reformer
 from config import VertexConfig
 import os
+use_tensorboard = True
 
 EPOCHS = 1000
 GPU = True
@@ -37,7 +38,8 @@ training_data = dl.VerticesDataset(root_dir="",
                                    train_percentage=0.925)
 """
 training_data = dl.MeshesDataset("./meshes")
-train_dataloader = DataLoader(training_data, batch_size=4, shuffle=True)
+batch_size = 1
+train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
 decoder = Reformer(**config['reformer']).to(device)
 model = VertexModel(decoder,
                     embedding_dim=config['reformer']['dim'],
@@ -47,12 +49,20 @@ model = VertexModel(decoder,
                     max_num_input_verts=1000,
                     device=device
                     ).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
+learning_rate = 3e-4
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 loss_fn = nn.CrossEntropyLoss(ignore_index=VertexTokenizer().tokens['pad'][0].item())
+
+writer = None
+if use_tensorboard:
+    from torch.utils.tensorboard import SummaryWriter
+    writer = SummaryWriter(comment=f'batch_size = {batch_size} learning_rate = {learning_rate}')
+
 
 if __name__ == "__main__":
     for epoch in range(1, EPOCHS + 1):
         total_loss = 0.0
+        sample = None
         for i, batch in enumerate(train_dataloader):
             model.train()
             optimizer.zero_grad()
@@ -60,7 +70,9 @@ if __name__ == "__main__":
             target = data['vertices_tokens'].to(device)
             out = model(data, targets=class_idx)
 
-            if epoch % 5 == 0:
+            if use_tensorboard and i == 0:
+                sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
+            elif epoch % 5 == 0:
                 sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
                 plot_results(sample, f"objects_{epoch}_{i}.png", output_dir="results_class_embv2")
             # note: remove class embedding when loss is calculated
@@ -70,3 +82,6 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
         print(f"Epoch {epoch}: loss {total_loss}")
+        if use_tensorboard:
+            writer.add_scalar("Loss/train", total_loss, epoch)
+            writer.add_mesh('reconstruction', np.interp(sample, (sample.min(), sample.max()), (-0.1, 0.1)), global_step=epoch)
