@@ -64,7 +64,7 @@ class VerticesDataset(Dataset):
             for trans in self.transform:
                 vertices = trans(vertices)
 
-        return vertices
+        return vertices, class_idx
 
 
 class MeshesDataset(Dataset):
@@ -75,7 +75,7 @@ class MeshesDataset(Dataset):
                             QuantizeVertices(),
                             ToTensor(),
                             #ResizeVertices(600),
-                            VertexTokenizer(2400)]):
+                            VertexTokenizer(2399)]):
         """
         Args:
             root_dir (string): Directory with all the ShapeNet data.
@@ -99,7 +99,7 @@ class MeshesDataset(Dataset):
             for trans in self.transform:
                 vertices = trans(vertices)
 
-        return vertices
+        return vertices, class_idx
 
 
 if __name__ == "__main__":

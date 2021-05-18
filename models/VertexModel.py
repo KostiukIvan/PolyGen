@@ -133,7 +133,7 @@ class VertexModel(nn.Module):
         self.pos_embeddings = nn.Embedding(self.max_num_input_verts, self.embedding_dim, padding_idx=0)
         self.vert_embedding = nn.Embedding(self.embedding_dim + 3, self.embedding_dim, padding_idx=2)
 
-        self.project_to_logits = nn.LayerNorm(self.embedding_dim) # ???
+        self.project_to_logits = nn.LayerNorm(self.embedding_dim)
 
     def _embed_inputs(self, batch_d, targets=None):
         """
@@ -153,16 +153,15 @@ class VertexModel(nn.Module):
         vert_embeddings = self.vert_embedding(batch_d['vertices_tokens'].long().to(self.device))
         embeddings = vert_embeddings + coord_embeddings + pos_embeddings
 
-        return embeddings
-
         if self.global_context_embedding is None:
-            # TODO - check if works as `tf.get_variable`
-            # zero_embed = torch.zeros((1, 1, self.embedding_dim))
-            # zero_embed_tiled = torch.tile(zero_embed, (batch_size, 1, 1))
-            return embeddings
+            batch_size = batch_d['vertices_tokens'].size(0)
+            zero_embed = torch.zeros((1, 1, self.embedding_dim))
+            zero_embed_tiled = torch.tile(zero_embed, (batch_size, 1, 1))
         else:
-            zero_embed_tiled = self.global_context_embedding(targets)[:, None]
-            return torch.cat([zero_embed_tiled, embeddings], dim=1)
+            zero_embed_tiled = self.global_context_embedding(targets).unsqueeze(1)
+
+
+        return torch.cat([zero_embed_tiled, embeddings], dim=1)
 
     def forward(self, batch_d, *, targets=None,
                 top_k=0, top_p=1):
@@ -185,7 +184,7 @@ class VertexModel(nn.Module):
             Proportion of probability mass to keep for top-p sampling.
         """
 
-        embed = self._embed_inputs(batch_d)
+        embed = self._embed_inputs(batch_d, targets=targets)
         outputs = self.decoder(embed)
 
         outputs = self.project_to_logits(outputs)

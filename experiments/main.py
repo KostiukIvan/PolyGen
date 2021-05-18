@@ -24,7 +24,8 @@ if GPU and torch.cuda.is_available():
 else:
     device = None
 
-training_data = dl.VerticesDataset(root_dir=r"C:\Users\ivank\UJ\Deep learining with multiple tasks\projects\PolyGen\data\shapenet_samples\\",
+"""
+training_data = dl.VerticesDataset(root_dir="",
                                    transform=[SortVertices(),
                                         NormalizeVertices(),
                                         QuantizeVertices(),
@@ -36,14 +37,13 @@ training_data = dl.VerticesDataset(root_dir=r"C:\Users\ivank\UJ\Deep learining w
                                    train_percentage=0.925)
 """
 training_data = dl.MeshesDataset("./meshes")
-"""
-train_dataloader = DataLoader(training_data, batch_size=2, shuffle=True)
-print(len(training_data))
+train_dataloader = DataLoader(training_data, batch_size=4, shuffle=True)
 decoder = Reformer(**config['reformer']).to(device)
 model = VertexModel(decoder,
                     embedding_dim=config['reformer']['dim'],
                     quantization_bits=8,
-                    class_conditional=False,
+                    class_conditional=True,
+                    num_classes=4,
                     max_num_input_verts=1000,
                     device=device
                     ).to(device)
@@ -56,15 +56,15 @@ if __name__ == "__main__":
         for i, batch in enumerate(train_dataloader):
             model.train()
             optimizer.zero_grad()
-            data = batch
-            target = batch['vertices_tokens'].to(device)
-            out = model(data)
+            data, class_idx = batch
+            target = data['vertices_tokens'].to(device)
+            out = model(data, targets=class_idx)
 
-            if i % 2 == 0:
+            if epoch % 5 == 0:
                 sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
-                plot_results(sample, f"objects_{epoch}_{i}.png")
-            out = torch.transpose(out, 1, 2)
-
+                plot_results(sample, f"objects_{epoch}_{i}.png", output_dir="results_class_embv2")
+            # note: remove class embedding when loss is calculated
+            out = torch.transpose(out, 1, 2)[:, :, 1:]
             loss = loss_fn(out, target)
             total_loss += loss.item()
             loss.backward()

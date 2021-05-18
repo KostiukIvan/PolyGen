@@ -57,7 +57,6 @@ class VertexConfig(Config):
             "ff_dropout": reformer__ff_dropout,
             "post_attn_dropout": reformer__post_attn_dropout,
             "ff_mult": reformer__ff_mult,
-            "max_seq_len": max_seq_len
         }
 
         self.config = {

@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch.nn.functional import pad
 
+
 class SortVertices:
     """
         This class is responsible for sorting vertices as was provided in PolyGen paper.
@@ -101,8 +102,9 @@ class VertexTokenizer:
 def detokenize(vertices_tokens):
     return torch.reshape(vertices_tokens, shape=(-1, 3))
 
+
 def extract_vert_values_from_tokens(vert_tokens, seq_len=2400):
-    vert_tokens = torch.max(vert_tokens[1:(seq_len - 1),:], dim=1)[1]
+    vert_tokens = torch.max(vert_tokens[1:(seq_len - 1), :], dim=1)[1]
     vertices = detokenize(vert_tokens[: ((seq_len - 2) // 3) * 3])
     vertices = vertices.float()
     vertices /= 256
