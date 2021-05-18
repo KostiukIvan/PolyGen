@@ -14,7 +14,7 @@ import os
 EPOCHS = 1000
 GPU = True
 dataset_dir = os.path.join(os.getcwd(), 'data', 'shapenet_samples')
-config = VertexConfig(embed_dim=128, reformer__depth=6,
+config = VertexConfig(embed_dim=256, reformer__depth=6,
                       reformer__lsh_dropout=0.,
                       reformer__ff_dropout=0.,
                       reformer__post_attn_dropout=0.)
@@ -23,29 +23,32 @@ if GPU and torch.cuda.is_available():
     device = torch.device('cuda')
 else:
     device = None
+
 """
-training_data = dl.VerticesDataset(root_dir=dataset_dir,
+training_data = dl.VerticesDataset(root_dir="",
                                    transform=[SortVertices(),
-                                              NormalizeVertices(),
-                                              QuantizeVertices(),
-                                              ToTensor(),
-                                              ResizeVertices(799),
-                                              ResizeVertices(800)],
+                                        NormalizeVertices(),
+                                        QuantizeVertices(),
+                                        ToTensor(),
+                                        #ResizeVertices(600),
+                                        VertexTokenizer(2400)],
                                    split='train',
-                                   classes=None,
+                                   classes="02691156",
                                    train_percentage=0.925)
 """
-training_data = dl.MeshesDataset("../meshes")
+training_data = dl.MeshesDataset("./meshes")
 train_dataloader = DataLoader(training_data, batch_size=4, shuffle=True)
 decoder = Reformer(**config['reformer']).to(device)
 model = VertexModel(decoder,
                     embedding_dim=config['reformer']['dim'],
                     quantization_bits=8,
-                    class_conditional=False,
-                    max_num_input_verts=750
+                    class_conditional=True,
+                    num_classes=4,
+                    max_num_input_verts=1000,
+                    device=device
                     ).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
-loss_fn = nn.MSELoss()
+loss_fn = nn.CrossEntropyLoss(ignore_index=VertexTokenizer().tokens['pad'][0].item())
 
 if __name__ == "__main__":
     for epoch in range(1, EPOCHS + 1):
@@ -53,16 +56,16 @@ if __name__ == "__main__":
         for i, batch in enumerate(train_dataloader):
             model.train()
             optimizer.zero_grad()
-            data = batch[0].to(device)
-            out = model(data)
+            data, class_idx = batch
+            target = data['vertices_tokens'].to(device)
+            out = model(data, targets=class_idx)
 
-            if epoch % 15 == 0:
-                sample = np.array([extract_vert_values_from_tokens(sample).numpy() for sample in out.cpu()])
-                plot_results(sample, f"objects_{epoch}.png")
-
-            loss = loss_fn(out[:, :, 0], data[:, 0])
-            if np.isnan(loss.item()):
-                print(f"(E): Model return loss {loss.item()}")
+            if epoch % 5 == 0:
+                sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
+                plot_results(sample, f"objects_{epoch}_{i}.png", output_dir="results_class_embv2")
+            # note: remove class embedding when loss is calculated
+            out = torch.transpose(out, 1, 2)[:, :, 1:]
+            loss = loss_fn(out, target)
             total_loss += loss.item()
             loss.backward()
             optimizer.step()
