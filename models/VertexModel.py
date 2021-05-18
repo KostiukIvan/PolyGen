@@ -158,7 +158,7 @@ class VertexModel(nn.Module):
             zero_embed = torch.zeros((1, 1, self.embedding_dim))
             zero_embed_tiled = torch.tile(zero_embed, (batch_size, 1, 1))
         else:
-            zero_embed_tiled = self.global_context_embedding(targets).unsqueeze(1)
+            zero_embed_tiled = self.global_context_embedding(targets.to(self.device)).unsqueeze(1)
 
 
         return torch.cat([zero_embed_tiled, embeddings], dim=1)
