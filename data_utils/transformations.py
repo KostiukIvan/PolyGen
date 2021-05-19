@@ -15,12 +15,68 @@ class SortVertices:
         Args:
             vertices (tensor (n_vertices, (x, y, z): tensor of vertices
         """
-        """Load obj file and process."""
         # sorting vertices
         vertices_keys = [vertices[..., i] for i in range(vertices.shape[-1])]
         sort_idxs = np.lexsort(vertices_keys)
         vertices = vertices[sort_idxs]
         return vertices
+
+class SortVerticesZOrder:
+    """
+        Sorts vertices using z-order curve
+    """
+    def __init__(self):
+        pass
+    
+    @staticmethod
+    def _less_msb(x: int, y: int) -> bool:
+        return x < y and x < (x ^ y)
+
+    @staticmethod
+    def _cmp_zorder(lhs, rhs) -> bool:
+        """Compare z-ordering."""
+        # Assume lhs and rhs array-like objects of indices.
+        assert len(lhs) == len(rhs)
+        # Will contain the most significant dimension.
+        msd = 0
+        # Loop over the other dimensions.
+        for dim in range(1, len(lhs)):
+            # Check if the current dimension is more significant
+            # by comparing the most significant bits.
+            if SortVerticesZOrder._less_msb(lhs[msd] ^ rhs[msd], lhs[dim] ^ rhs[dim]):
+                msd = dim
+        return lhs[msd] < rhs[msd]
+
+    @staticmethod
+    def _partition(arr, low, high):
+        i = (low-1)
+        pivot = arr[high]
+    
+        for j in range(low, high):
+            if not SortVerticesZOrder._cmp_zorder(arr[j], pivot):
+                i += 1
+                arr[i], arr[j] = arr[j], arr[i]
+    
+        arr[i+1], arr[high] = arr[high], arr[i+1]
+        return (i+1)
+    
+    @staticmethod
+    def _quickSort(arr, low, high):
+        if len(arr) == 1:
+            return arr
+        if low < high:
+            pi = SortVerticesZOrder._partition(arr, low, high)
+            SortVerticesZOrder._quickSort(arr, low, pi-1)
+            SortVerticesZOrder._quickSort(arr, pi+1, high)
+
+    def __call__(self, vertices):
+        """
+        Args:
+            vertices [n_vertices, [x, y, z]]: array of vertices
+        """
+        vertices = list(vertices)
+        SortVerticesZOrder._quickSort(vertices, 0, len(vertices) - 1)
+        return np.array(vertices)
 
 
 class NormalizeVertices:

@@ -33,6 +33,7 @@ class VerticesDataset(Dataset):
         Args:
             root_dir (string): Directory with all the ShapeNet data.
             classes (list): list of all data classes that can be used. Use None if all classes should be used.
+        use transform=[NormalizeVertices(), QuantizeVertices(), SortVerticesZOrder(), ToTensor(), ResizeVertices(...), VertexTokenizer(...)] for z-order (quantize before sorting)
         """
         self.root_dir = root_dir
         self.transform = transform
