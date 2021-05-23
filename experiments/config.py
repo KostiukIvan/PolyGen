@@ -25,7 +25,8 @@ class VertexConfig(Config):
                  reformer__lsh_dropout=0.2,
                  reformer__ff_dropout=0.2,
                  reformer__post_attn_dropout=0.2,
-                 reformer__ff_mult=4):
+                 reformer__ff_mult=4,
+                 top_p=0.9):
         # tokenizer config
         tokenizer_config = {
             "bos_id": tokenizer__bos_id,
@@ -65,4 +66,5 @@ class VertexConfig(Config):
             "tokenizer": tokenizer_config,
             "embedding": embedding_config,
             "reformer": reformer_config,
+            "top_p": top_p
         }

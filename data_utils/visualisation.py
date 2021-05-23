@@ -13,3 +13,5 @@ def plot_results(vertices_batch, filename, *, output_dir='plots', number_of_obje
         z = vertices_batch[i, :, 2]
         ax.scatter(x, y, z)
     plt.savefig(os.path.join(output_dir, filename))
+    plt.close()
+

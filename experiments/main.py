@@ -68,7 +68,8 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             data, class_idx = batch
             target = data['vertices_tokens'].to(device)
-            out = model(data, targets=class_idx)
+            out = model(data, targets=class_idx,
+                        top_p=config['top_p'])
 
             if use_tensorboard and i == 0:
                 sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])

@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import random
 
 
 def dequantize_vertices(vertices, *, n_bits=8, add_noise=False):
@@ -24,40 +23,16 @@ def top_k_logits(logits, k):
     """
     Masks logits such that logits not in top-k are small.
     """
-    if not isinstance(logits, torch.Tensor):
-        logits = torch.Tensor(logits).to(dtype=torch.float32)
-
-    if k == 0:
+    if k <= 0:
         return logits
+
     values, _ = torch.topk(logits, k)
     k_largest = torch.min(values, dim=-2)[0].min()
     return torch.where(torch.le(logits, k_largest),
                        torch.ones_like(logits) * -1e9, logits)
 
 
-# TODO does not work as tf version - probably needs to implemented from scratch [ look up top-p sampling]
-def top_p_logits(logits, p):
-    """
-    Masks logits using nucleus (top-p) sampling.
-    """
-    if not isinstance(logits, torch.Tensor):
-        logits = torch.Tensor(logits).to(dtype=torch.float32)
-
-    if p > 0:
-        sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-
-        sorted_indices_to_remove = cumulative_probs > p
-
-        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-        sorted_indices_to_remove[..., 0] = 0
-
-        indices_to_remove = sorted_indices[sorted_indices_to_remove]
-        logits[indices_to_remove] = -1e+9
-        return logits
-
-
-def sample_top_p(logits, top_p):
+def top_p_logits(logits, top_p, min_tokens_to_keep=1, filter_value=-float('Inf')):
     """
     Samples random index of logits tensor using top-p sampling
     Args:
@@ -67,12 +42,18 @@ def sample_top_p(logits, top_p):
         Tensor: randomly picked index
     """
     sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-    cumsum = torch.cumsum(sorted_logits, dim=-1)
-    tensors_amount_to_remove = len(sorted_indices[cumsum >= top_p])
-    if tensors_amount_to_remove > 0:
-        tensors_amount_to_remove -= 1
-    indices_to_pick_from = sorted_indices if tensors_amount_to_remove == 0 else sorted_indices[:-tensors_amount_to_remove]
-    return indices_to_pick_from[random.randint(0, len(indices_to_pick_from) - 1)]
+    cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
+    sorted_indices_to_remove = cumulative_probs > top_p
+    if min_tokens_to_keep > 1:
+        sorted_indices_to_remove[..., : min_tokens_to_keep - 1] = 0
+
+    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+    sorted_indices_to_remove[..., 0] = 0
+
+    # scatter sorted tensors to original indexing
+    indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+    scores = logits.masked_fill(indices_to_remove, filter_value)
+    return scores
 
 
 class VertexModel(nn.Module):
@@ -188,9 +169,11 @@ class VertexModel(nn.Module):
         outputs = self.decoder(embed)
 
         outputs = self.project_to_logits(outputs)
-        # logits /= temperature
-        # logits = top_k_logits(logits, top_k)
-        # logits = top_p_logits(logits, top_p)
+
+        # outputs /= temperature
+        outputs = top_k_logits(outputs, top_k)
+        outputs = top_p_logits(outputs, top_p)
+        outputs = F.softmax(outputs, dim=-1)
 
         return outputs
 
