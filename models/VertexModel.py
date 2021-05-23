@@ -173,7 +173,6 @@ class VertexModel(nn.Module):
         # outputs /= temperature
         outputs = top_k_logits(outputs, top_k)
         outputs = top_p_logits(outputs, top_p)
-        outputs = F.softmax(outputs, dim=-1)
 
         return outputs
 

@@ -54,7 +54,8 @@ model = VertexModel(decoder,
                     ).to(device)
 learning_rate = 3e-4
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-loss_fn = nn.CrossEntropyLoss(ignore_index=VertexTokenizer().tokens['pad'][0].item())
+ignore_index = VertexTokenizer().tokens['pad'][0].item()
+loss_fn = nn.CrossEntropyLoss(ignore_index=ignore_index)
 
 writer = None
 if use_tensorboard:
@@ -89,7 +90,9 @@ if __name__ == "__main__":
             data, class_idx = batch
             target = data['vertices_tokens'].to(device)
             out = model(data, targets=class_idx,
+                        top_k=config['top_k'],
                         top_p=config['top_p'])
+            out[out==-float('Inf')] = ignore_index
 
             if use_tensorboard and i == 0:
                 sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
