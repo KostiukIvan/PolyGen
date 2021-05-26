@@ -10,9 +10,12 @@ from models.VertexModel import VertexModel
 from reformer_pytorch import Reformer
 from config import VertexConfig
 import os
+from datetime import datetime
+from utils.args import get_args
 use_tensorboard = True
 
 EPOCHS = 1000
+save_weights_nth_epoch = 20
 GPU = True
 dataset_dir = os.path.join(os.getcwd(), 'data', 'shapenet_samples')
 config = VertexConfig(embed_dim=256, reformer__depth=6,
@@ -58,9 +61,26 @@ if use_tensorboard:
     from torch.utils.tensorboard import SummaryWriter
     writer = SummaryWriter(comment=f'batch_size = {batch_size} learning_rate = {learning_rate}')
 
-
 if __name__ == "__main__":
-    for epoch in range(1, EPOCHS + 1):
+    params = get_args()
+
+    # load weights if provided param or create dir for saving weights
+    # e.g. -load_weights path/to/weights/epoch_x.pt
+    if 'load_weights' in params:
+        checkpoint = torch.load(params['load_weights'])
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch = checkpoint['epoch'] + 1
+        total_loss = checkpoint['loss']
+        model_weights_path = os.path.dirname(params['load_weights'])
+        print('loaded', model_weights_path)
+    else:
+        model_weights_path = os.path.join(os.getcwd(), 'weights', datetime.now().strftime("%d_%m_%Y_%H_%M"))
+        if not os.path.exists(model_weights_path):
+            os.makedirs(model_weights_path)
+        epoch = 1
+    
+    for epoch in range(epoch, EPOCHS + 1):
         total_loss = 0.0
         sample = None
         for i, batch in enumerate(train_dataloader):
@@ -83,6 +103,14 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
         print(f"Epoch {epoch}: loss {total_loss}")
+        if epoch % save_weights_nth_epoch == 0:
+            print('saving weights')
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': total_loss,
+            }, os.path.join(model_weights_path, 'epoch_' + str(epoch) + '.pt'))
         if use_tensorboard:
             writer.add_scalar("Loss/train", total_loss, epoch)
             writer.add_mesh('reconstruction', np.interp(sample, (sample.min(), sample.max()), (-0.1, 0.1)), global_step=epoch)
