@@ -1,20 +1,21 @@
+import os
 import numpy as np
 import torch.nn as nn
 
 import data_utils.dataloader as dl
 from data_utils.transformations import *
-from data_utils.transformations import detokenize, extract_vert_values_from_tokens
 from data_utils.visualisation import plot_results
 from torch.utils.data import DataLoader
 from models.VertexModel import VertexModel
 from reformer_pytorch import Reformer
 from config import VertexConfig
-import os
-from datetime import datetime
 from utils.args import get_args
+from utils.checkpoint import load_model
+
+
 use_tensorboard = True
 
-EPOCHS = 1000
+EPOCHS = 100
 save_weights_nth_epoch = 20
 GPU = True
 dataset_dir = os.path.join(os.getcwd(), 'data', 'shapenet_samples')
@@ -65,21 +66,9 @@ if use_tensorboard:
 if __name__ == "__main__":
     params = get_args()
 
-    # load weights if provided param or create dir for saving weights
+    # Load weights if provided param or create dir for saving weights
     # e.g. -load_weights path/to/weights/epoch_x.pt
-    if 'load_weights' in params:
-        checkpoint = torch.load(params['load_weights'])
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        epoch = checkpoint['epoch'] + 1
-        total_loss = checkpoint['loss']
-        model_weights_path = os.path.dirname(params['load_weights'])
-        print('loaded', model_weights_path)
-    else:
-        model_weights_path = os.path.join(os.getcwd(), 'weights', datetime.now().strftime("%d_%m_%Y_%H_%M"))
-        if not os.path.exists(model_weights_path):
-            os.makedirs(model_weights_path)
-        epoch = 1
+    model_weights_path, epoch, total_loss = load_model(params, model, optimizer)
     
     for epoch in range(epoch, EPOCHS + 1):
         total_loss = 0.0
@@ -89,10 +78,7 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             data, class_idx = batch
             target = data['vertices_tokens'].to(device)
-            out = model(data, targets=class_idx,
-                        top_k=config['top_k'],
-                        top_p=config['top_p'])
-            out[out==-float('Inf')] = ignore_index
+            out = model(data, targets=class_idx)
 
             if use_tensorboard and i == 0:
                 sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])

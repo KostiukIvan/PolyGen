@@ -125,10 +125,8 @@ class VertexModel(nn.Module):
         vertices: torch.Tensor
             Vertices of shape [batch_size, max_sequence_length, 3]
         targets: torch.Tensor
-            TODO: make use of it in the future
             Tensor of labels required if `class_conditional` is True.
         """
-
         coord_embeddings = self.coord_embeddings(batch_d['axises_tokens'].long().to(self.device))
         pos_embeddings = self.pos_embeddings(batch_d['position_tokens'].long().to(self.device))
         vert_embeddings = self.vert_embedding(batch_d['vertices_tokens'].long().to(self.device))
@@ -140,7 +138,6 @@ class VertexModel(nn.Module):
             zero_embed_tiled = torch.tile(zero_embed, (batch_size, 1, 1))
         else:
             zero_embed_tiled = self.global_context_embedding(targets.to(self.device)).unsqueeze(1)
-
 
         return torch.cat([zero_embed_tiled, embeddings], dim=1)
 
@@ -164,7 +161,6 @@ class VertexModel(nn.Module):
         top_p: float, optional
             Proportion of probability mass to keep for top-p sampling.
         """
-
         embed = self._embed_inputs(batch_d, targets=targets)
         outputs = self.decoder(embed)
 
@@ -176,15 +172,17 @@ class VertexModel(nn.Module):
 
         return outputs
 
-    def sample(self, num_samples, *,
-               context=None, max_sample_length=None, top_k=0, top_p=1, recenter_verts=True, only_return_complete=True):
+    def sample(self, num_samples, tokenizer, *,
+               context=None, max_sample_length=None, top_k=0, top_p=1):
         """
-        Autoregressive sampling with caching.
+        Autoregressive sampling.
 
         Parameters
         ----------
         num_samples: int
             Number of samples to produce.
+        tokenizer: VertexTokenizer
+            Tokenizer required for the generation of initial tokens.
         context:  torch.Tensor, optional
             Tensor of labels - provide class context to a model.
         max_sample_length: int
@@ -193,25 +191,36 @@ class VertexModel(nn.Module):
             Number of tokens to keep from top-k sampling.
         top_p: float, optional
             Proportion of probability mass to keep for top-p sampling.
-        recenter_verts: bool, optional
-            Center vertex samples around origin. (should be used if trained using shift augmentation)
-        only_return_complete: bool, optional
-            Determines if only completed samples should be returned.
 
         Returns
         -------
-        dict
-            Dictionary containing the following fields:
-                - 'completed': Boolean tensor of shape [num_samples]. If True then
-                   corresponding sample completed within max_sample_length.
-                - 'vertices': Tensor of samples with shape [num_samples, num_verts, 3].
-                - 'num_vertices': Tensor indicating number of vertices for each example
-                                  in padded vertex samples.
-                'vertices_mask': Tensor of shape [num_samples, num_verts] that masks
-                                 corresponding invalid elements in 'vertices'.
+        torch.Tensor
+            Generated tensor of vertices.
         """
-        if context is not None:
-            global_context = self.global_context_embedding(context).detach()
-            num_samples = torch.min(num_samples, global_context.size(0))
+        max_sample_length = max_sample_length or self.max_num_input_verts
+        tokens = tokenizer.get_initial_sampling_tokens(num_samples)
 
-        # TODO implement
+        tokens = {
+            k: v.unsqueeze(0).to(self.device) for k, v in tokens.items()
+        }
+
+        preds = []
+        pred_idx = 0
+        while pred_idx <= max_sample_length - 1:# and \
+                #((len(preds) == 0) or (preds[-1] != tokenizer.tokens["eos"][0] - len(tokenizer.tokens))):
+            if pred_idx >= 0:
+                tokens = tokenizer(torch.stack(preds))
+                tokens = {
+                    k: v.unsqueeze(0).to(self.device) for k, v in tokens.items()
+                }
+                # tokens["vertices_tokens"][:, pred_idx] = tokenizer.tokens["pad"][0]
+            print(tokens, tokens['vertices_tokens'].size(), tokens['axises_tokens'].size(), tokens['position_tokens'].size())
+            preds.append(self(tokens,
+                              targets=context,
+                              top_k=top_k,
+                              top_p=top_p).argmax(1)
+                         )
+            pred_idx += 1
+
+        preds = torch.stack(preds)# + len(tokenizer.tokens)
+        return preds
