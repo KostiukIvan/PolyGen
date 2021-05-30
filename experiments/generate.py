@@ -20,7 +20,8 @@ if GPU and torch.cuda.is_available():
 else:
     device = None
 
-vertex_tokenizer = VertexTokenizer(max_seq_len=2399)
+max_seq_len = 899
+vertex_tokenizer = VertexTokenizer(max_seq_len=max_seq_len)
 decoder = Reformer(**config['reformer']).to(device)
 model = VertexModel(decoder,
                     embedding_dim=config['reformer']['dim'],
@@ -45,8 +46,11 @@ if __name__ == "__main__":
         out = model.sample(
             num_samples=4,
             tokenizer=vertex_tokenizer,
+            max_sample_length=max_seq_len,
             context=torch.tensor([0])
         )
-    sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
-    plot_results(sample, "objects_gerated.png", output_dir="generate")
 
+    print("OUT", out.size())
+    sample = np.array([extract_vert_values_from_tokens(sample, seq_len=max_seq_len + 1).numpy()
+                       for sample in out.cpu()])
+    plot_results(sample, "objects_gerated.png", output_dir="generate")

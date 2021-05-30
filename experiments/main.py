@@ -1,6 +1,10 @@
 import os
 import numpy as np
+import torch
 import torch.nn as nn
+
+# pip install chamferdist
+from chamferdist import ChamferDistance
 
 import data_utils.dataloader as dl
 from data_utils.transformations import *
@@ -42,7 +46,7 @@ training_data = dl.VerticesDataset(root_dir="",
                                    train_percentage=0.925)
 """
 training_data = dl.MeshesDataset("./meshes")
-batch_size = 1
+batch_size = 4
 train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
 decoder = Reformer(**config['reformer']).to(device)
 model = VertexModel(decoder,
@@ -56,6 +60,8 @@ model = VertexModel(decoder,
 learning_rate = 3e-4
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 ignore_index = VertexTokenizer().tokens['pad'][0].item()
+chamfer_loss = ChamferDistance()
+mse_loss = nn.MSELoss()
 loss_fn = nn.CrossEntropyLoss(ignore_index=ignore_index)
 
 writer = None
@@ -71,7 +77,7 @@ if __name__ == "__main__":
     model_weights_path, epoch, total_loss = load_model(params, model, optimizer)
     
     for epoch in range(epoch, EPOCHS + 1):
-        total_loss = 0.0
+        total_loss = chamfer_loss_total = mse_loss_total = 0.0
         sample = None
         for i, batch in enumerate(train_dataloader):
             model.train()
@@ -80,18 +86,30 @@ if __name__ == "__main__":
             target = data['vertices_tokens'].to(device)
             out = model(data, targets=class_idx)
 
+            # note: Remove output from class embedding
+            out = out[:, 1:, :]
             if use_tensorboard and i == 0:
                 sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
             elif epoch % 5 == 0:
                 sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
                 plot_results(sample, f"objects_{epoch}_{i}.png", output_dir="results_class_embv2")
-            # note: remove class embedding when loss is calculated
-            out = torch.transpose(out, 1, 2)[:, :, 1:]
+
+            # note: Detokenize vertices in order to calculate MSE and Chamfer
+            with torch.no_grad():
+                out_verts = torch.Tensor(
+                    [extract_vert_values_from_tokens(sample, seq_len=2400).tolist() for sample in out]).to(device)
+                target_targets = torch.Tensor(
+                    [extract_vert_values_from_tokens(sample, seq_len=2400, is_target=True).tolist()
+                     for sample in target]).to(device)
+                chamfer_loss_total += chamfer_loss(out_verts, target_targets).item()
+                mse_loss_total += mse_loss(out_verts, target_targets).item()
+
+            out = torch.transpose(out, 1, 2)
             loss = loss_fn(out, target)
             total_loss += loss.item()
             loss.backward()
             optimizer.step()
-        print(f"Epoch {epoch}: loss {total_loss}")
+        print(f"Epoch {epoch}: loss {total_loss}, chamfer {chamfer_loss_total}, mse {mse_loss_total}")
         if epoch % save_weights_nth_epoch == 0:
             print('saving weights')
             torch.save({
