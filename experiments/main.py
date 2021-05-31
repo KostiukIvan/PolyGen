@@ -13,10 +13,12 @@ from utils.args import get_args
 from utils.checkpoint import load_model
 
 
-use_tensorboard = True
+use_tensorboard = False
 
-EPOCHS = 100
-save_weights_nth_epoch = 20
+EPOCHS = 1000
+batch_size = 6
+back_prop_freq = 1
+save_weights_nth_epoch = 50
 GPU = True
 dataset_dir = os.path.join(os.getcwd(), 'data', 'shapenet_samples')
 config = VertexConfig(embed_dim=256, reformer__depth=6,
@@ -29,8 +31,8 @@ if GPU and torch.cuda.is_available():
 else:
     device = None
 
-"""
-training_data = dl.VerticesDataset(root_dir="",
+
+training_data = dl.VerticesDataset(root_dir="/mnt/remote/wmii_gmum_projects/datasets/ShapeNetPolygen/",
                                    transform=[SortVertices(),
                                         NormalizeVertices(),
                                         QuantizeVertices(),
@@ -39,17 +41,19 @@ training_data = dl.VerticesDataset(root_dir="",
                                         VertexTokenizer(2400)],
                                    split='train',
                                    classes="02691156",
-                                   train_percentage=0.925)
-"""
+                                   train_percentage=0.99)
+'''
 training_data = dl.MeshesDataset("./meshes")
-batch_size = 1
+'''
+print("Loaded data len: ", len(training_data))
+
 train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
 decoder = Reformer(**config['reformer']).to(device)
 model = VertexModel(decoder,
                     embedding_dim=config['reformer']['dim'],
                     quantization_bits=8,
                     class_conditional=True,
-                    num_classes=4,
+                    num_classes=1,
                     max_num_input_verts=1000,
                     device=device
                     ).to(device)
@@ -69,28 +73,40 @@ if __name__ == "__main__":
     # Load weights if provided param or create dir for saving weights
     # e.g. -load_weights path/to/weights/epoch_x.pt
     model_weights_path, epoch, total_loss = load_model(params, model, optimizer)
-    
+    model.train()
     for epoch in range(epoch, EPOCHS + 1):
         total_loss = 0.0
         sample = None
+        batch_loss = None
         for i, batch in enumerate(train_dataloader):
-            model.train()
-            optimizer.zero_grad()
+            if i == len(train_dataloader) or (i + 1) % back_prop_freq == 0:
+                optimizer.zero_grad()
+
             data, class_idx = batch
             target = data['vertices_tokens'].to(device)
+            
             out = model(data, targets=class_idx)
-
-            if use_tensorboard and i == 0:
-                sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
-            elif epoch % 5 == 0:
-                sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
-                plot_results(sample, f"objects_{epoch}_{i}.png", output_dir="results_class_embv2")
+            #print(out.shape, data['vertices_tokens'].shape)
             # note: remove class embedding when loss is calculated
-            out = torch.transpose(out, 1, 2)[:, :, 1:]
+            out = torch.transpose(out, 1, 2)#[:, :, 1:]
             loss = loss_fn(out, target)
             total_loss += loss.item()
-            loss.backward()
-            optimizer.step()
+
+            if batch_loss:
+                batch_loss += loss.item()
+            else:
+                batch_loss = loss
+            if i == len(train_dataloader) or (i + 1) % back_prop_freq == 0:
+                batch_loss.backward()
+                optimizer.step()
+                batch_loss = None
+
+        if use_tensorboard and i == 0:
+            sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
+        elif epoch % 1 == 0:
+            recon = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
+            plot_results(recon, f"reconstruction_{epoch}_{i}.png", output_dir="results_class_embv2")
+
         print(f"Epoch {epoch}: loss {total_loss}")
         if epoch % save_weights_nth_epoch == 0:
             print('saving weights')

@@ -44,7 +44,9 @@ class VerticesDataset(Dataset):
             if classes is not None and class_name not in classes:
                 continue
             for augmentation_dir in os.listdir(join(root_dir, class_name)):
-                for augmented_mesh_file in os.listdir(join(root_dir, class_name, augmentation_dir)):
+                for i, augmented_mesh_file in enumerate(os.listdir(join(root_dir, class_name, augmentation_dir))):
+                    if i > 1:
+                        break
                     file_paths.append((join(root_dir, class_name, augmentation_dir, augmented_mesh_file), class_idx))
         self.X_train, self.X_valid = train_test_split(file_paths, test_size=1 - train_percentage, shuffle=True)
                 
@@ -76,7 +78,7 @@ class MeshesDataset(Dataset):
                             QuantizeVertices(),
                             ToTensor(),
                             #ResizeVertices(600),
-                            VertexTokenizer(2399)]):
+                            VertexTokenizer(2400)]):
         """
         Args:
             root_dir (string): Directory with all the ShapeNet data.

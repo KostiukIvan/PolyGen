@@ -127,12 +127,13 @@ class ResizeVertices:
 
 
 class VertexTokenizer:
-    def __init__(self, max_seq_len=2399):
-        self.max_seq_len = max_seq_len - 2  # make one slot left for eos token
+    def __init__(self, max_seq_len=2400):
+        #NOTE: max_seq_len % reformer__bucket_size == 0 !!!
+        self.max_seq_len = max_seq_len - 3  # make one slot left for eos token
         self.tokens = {
             'bos': torch.tensor([0]),
-            'pad': torch.tensor([1]),
-            'eos': torch.tensor([2]),
+            'eos': torch.tensor([1]),
+            'pad': torch.tensor([2]),
         }
     
     def __call__(self, vertices):
@@ -149,9 +150,9 @@ class VertexTokenizer:
             axises_tokens = pad(axises_tokens, (0, amount_to_pad), value=self.tokens['pad'][0])
             position_tokens = pad(position_tokens, (0, amount_to_pad), value=self.tokens['pad'][0])
 
-        vertices_tokens = torch.cat([self.tokens['bos'], vertices_tokens, self.tokens['eos']])
-        axises_tokens = torch.cat([self.tokens['bos'], axises_tokens, self.tokens['eos']])
-        position_tokens = torch.cat([self.tokens['bos'], position_tokens, self.tokens['eos']])
+        vertices_tokens = torch.cat([self.tokens['bos'], vertices_tokens, self.tokens['pad'], self.tokens['eos']])
+        axises_tokens = torch.cat([self.tokens['bos'], axises_tokens, self.tokens['pad'], self.tokens['eos']])
+        position_tokens = torch.cat([self.tokens['bos'], position_tokens, self.tokens['pad'], self.tokens['eos']])
 
         return {"vertices_tokens": vertices_tokens,
                 "axises_tokens": axises_tokens,
@@ -171,8 +172,8 @@ def detokenize(vertices_tokens):
 
 
 def extract_vert_values_from_tokens(vert_tokens, seq_len=2400):
-    vert_tokens = torch.max(vert_tokens[1:(seq_len - 1), :], dim=1)[1]
-    vertices = detokenize(vert_tokens[: ((seq_len - 2) // 3) * 3])
+    vert_tokens = torch.max(vert_tokens[:, 1:(seq_len - 2)], dim=0)[1]
+    vertices = detokenize(vert_tokens) #[: ((seq_len - 2) // 3) * 3])
     vertices = vertices.float()
     vertices /= 256
     return vertices

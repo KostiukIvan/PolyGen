@@ -127,10 +127,12 @@ class VertexModel(nn.Module):
         targets: torch.Tensor
             Tensor of labels required if `class_conditional` is True.
         """
+        
         coord_embeddings = self.coord_embeddings(batch_d['axises_tokens'].long().to(self.device))
         pos_embeddings = self.pos_embeddings(batch_d['position_tokens'].long().to(self.device))
         vert_embeddings = self.vert_embedding(batch_d['vertices_tokens'].long().to(self.device))
         embeddings = vert_embeddings + coord_embeddings + pos_embeddings
+        return embeddings
 
         if self.global_context_embedding is None:
             batch_size = batch_d['vertices_tokens'].size(0)
@@ -161,6 +163,7 @@ class VertexModel(nn.Module):
         top_p: float, optional
             Proportion of probability mass to keep for top-p sampling.
         """
+        
         embed = self._embed_inputs(batch_d, targets=targets)
         outputs = self.decoder(embed)
 
