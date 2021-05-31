@@ -171,8 +171,13 @@ def detokenize(vertices_tokens):
     return torch.reshape(vertices_tokens, shape=(-1, 3))
 
 
-def extract_vert_values_from_tokens(vert_tokens, seq_len=2400):
-    vert_tokens = torch.max(vert_tokens[:, 1:(seq_len - 2)], dim=0)[1]
+def extract_vert_values_from_tokens(vert_tokens, seq_len=2400, is_target=False):
+    # note: Targets needs to be extracted in order to calculate chamfer dist.
+    if not is_target:
+        vert_tokens = torch.max(vert_tokens[:, 1:(seq_len - 2)], dim=0)[1]
+    else:
+        vert_tokens = vert_tokens[1:(seq_len - 2)]
+
     vertices = detokenize(vert_tokens) #[: ((seq_len - 2) // 3) * 3])
     vertices = vertices.float()
     vertices /= 256

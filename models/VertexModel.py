@@ -132,8 +132,8 @@ class VertexModel(nn.Module):
         pos_embeddings = self.pos_embeddings(batch_d['position_tokens'].long().to(self.device))
         vert_embeddings = self.vert_embedding(batch_d['vertices_tokens'].long().to(self.device))
         embeddings = vert_embeddings + coord_embeddings + pos_embeddings
-        return embeddings
 
+        return embeddings
         if self.global_context_embedding is None:
             batch_size = batch_d['vertices_tokens'].size(0)
             zero_embed = torch.zeros((1, 1, self.embedding_dim))

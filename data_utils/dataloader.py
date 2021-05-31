@@ -26,7 +26,7 @@ class VerticesDataset(Dataset):
                             QuantizeVertices(),
                             ToTensor(),
                             #ResizeVertices(600),
-                            VertexTokenizer(2400)],
+                            VertexTokenizer()],
                 split='train',
                 train_percentage=0.925):
         """
@@ -78,7 +78,7 @@ class MeshesDataset(Dataset):
                             QuantizeVertices(),
                             ToTensor(),
                             #ResizeVertices(600),
-                            VertexTokenizer(2400)]):
+                            VertexTokenizer()]):
         """
         Args:
             root_dir (string): Directory with all the ShapeNet data.
