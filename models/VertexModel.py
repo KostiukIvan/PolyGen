@@ -198,32 +198,29 @@ class VertexModel(nn.Module):
             Generated tensor of vertices.
         """
         max_sample_length = max_sample_length or self.max_num_input_verts
-        tokens = tokenizer.get_initial_sampling_tokens()
+        tokens = tokenizer.get_initial_sampling_tokens(num_samples)
+
         tokens = {
             k: v.unsqueeze(0).to(self.device) for k, v in tokens.items()
         }
 
-        pred_idx = 0
         preds = []
-
-        while pred_idx <= 2:#max_sample_length or torch.any(torch.all(tokens['vertices_tokens'] != 0)):
-            print(pred_idx)
-            if pred_idx >= 1:
+        pred_idx = 0
+        while pred_idx <= max_sample_length - 1:# and \
+                #((len(preds) == 0) or (preds[-1] != tokenizer.tokens["eos"][0] - len(tokenizer.tokens))):
+            if pred_idx >= 0:
                 tokens = tokenizer(torch.stack(preds))
                 tokens = {
                     k: v.unsqueeze(0).to(self.device) for k, v in tokens.items()
                 }
-                tokens["vertices_tokens"][:, pred_idx] = tokenizer.tokens["pad"].item()
-            # print(tokens, tokens['vertices_tokens'].size(), tokens['axises_tokens'].size(), tokens['position_tokens'].size())
-            hs = self(
-                tokens,
-                targets=context,
-                top_k=top_k,
-                top_p=top_p
-            )
-            hs = F.linear(hs[:, pred_idx], self.vert_embedding.weight)
-
-            preds.append(hs.argmax(dim=1)[0])
+                # tokens["vertices_tokens"][:, pred_idx] = tokenizer.tokens["pad"][0]
+            print(tokens, tokens['vertices_tokens'].size(), tokens['axises_tokens'].size(), tokens['position_tokens'].size())
+            preds.append(self(tokens,
+                              targets=context,
+                              top_k=top_k,
+                              top_p=top_p).argmax(1)
+                         )
             pred_idx += 1
 
-        return tokens['vertices_tokens'].unsqueeze(2)
+        preds = torch.stack(preds)# + len(tokenizer.tokens)
+        return preds
