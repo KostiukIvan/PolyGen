@@ -2,12 +2,8 @@ import os
 import numpy as np
 import torch.nn as nn
 
-# To install CPU-only: `pip install pytorch3d`
-# To install CUDA supported version run `conda install pytorch3d -c pytorch3d`
-# Plus all the dependencies
-# -------------------------
-# For me worked
-# pip install "torch<1.7"
+# pip install pytorch3d`
+# For me in order to install torch downgrade was required: pip install "torch<1.7"
 from pytorch3d.loss import chamfer_distance
 
 import data_utils.dataloader as dl
