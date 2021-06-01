@@ -1,8 +1,14 @@
 import os
 import numpy as np
 import torch.nn as nn
-# pip install chmferdist
-from chamferdist import ChamferDistance
+
+# To install CPU-only: `pip install pytorch3d`
+# To install CUDA supported version run `conda install pytorch3d -c pytorch3d`
+# Plus all the dependencies
+# -------------------------
+# For me worked
+# pip install "torch<1.7"
+from pytorch3d.loss import chamfer_distance
 
 import data_utils.dataloader as dl
 from data_utils.transformations import *
@@ -64,7 +70,6 @@ learning_rate = 3e-4
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 ignore_index = VertexTokenizer().tokens['pad'][0].item()
 loss_fn = nn.CrossEntropyLoss(ignore_index=ignore_index)
-chamfer_loss = ChamferDistance()
 
 writer = None
 if use_tensorboard:
@@ -100,10 +105,10 @@ if __name__ == "__main__":
             # note: Calculate metrics
             with torch.no_grad():
                 out_verts = torch.Tensor([extract_vert_values_from_tokens(sample, seq_len=seq_len).numpy()
-                                         for sample in out]).to(device)
+                                         for sample in out.cpu()]).to(device)
                 target_verts = torch.Tensor([extract_vert_values_from_tokens(sample, seq_len=seq_len, is_target=True).numpy()
-                                            for sample in target]).to(device)
-                total_chamfer_loss += chamfer_loss(out_verts, target_verts).item()
+                                            for sample in target.cpu()]).to(device)
+                total_chamfer_loss += chamfer_distance(out_verts, target_verts)[0].item()
 
                 total_accuracy += accuracy(out, target, ignore_index=ignore_index, device=device)
 
