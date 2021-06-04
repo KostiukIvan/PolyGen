@@ -23,8 +23,8 @@ use_tensorboard = False
 EPOCHS = 1000
 batch_size = 4
 back_prop_freq = 1
-save_weights_nth_epoch = 50
-seq_len = 2400
+save_weights_nth_epoch = 10
+seq_len = 810
 GPU = True
 dataset_dir = os.path.join(os.getcwd(), 'data', 'shapenet_samples')
 config = VertexConfig(embed_dim=256, reformer__depth=6,

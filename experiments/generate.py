@@ -8,6 +8,7 @@ from utils.args import get_args
 from utils.checkpoint import load_model
 
 use_tensorboard = True
+seq_len = 810
 
 GPU = True
 config = VertexConfig(embed_dim=256, reformer__depth=6,
@@ -20,7 +21,7 @@ if GPU and torch.cuda.is_available():
 else:
     device = None
 
-vertex_tokenizer = VertexTokenizer(max_seq_len=2399)
+vertex_tokenizer = VertexTokenizer(max_seq_len=810)
 decoder = Reformer(**config['reformer']).to(device)
 model = VertexModel(decoder,
                     embedding_dim=config['reformer']['dim'],
@@ -43,10 +44,11 @@ if __name__ == "__main__":
     model_weights_path, epoch, total_loss = load_model(params, model, optimizer)
     with torch.no_grad():
         out = model.sample(
-            num_samples=4,
+            num_samples=1,
             tokenizer=vertex_tokenizer,
-            context=torch.tensor([0])
-        )
-    sample = np.array([extract_vert_values_from_tokens(sample, seq_len=2400).numpy() for sample in out.cpu()])
+            max_sample_length=seq_len,
+            top_p=0.9
+        ).transpose(1, 0)
+    print(out.size())
+    sample = np.array([extract_vert_values_from_tokens(sample, seq_len=seq_len, is_target=True).numpy() for sample in out.cpu()])
     plot_results(sample, "objects_gerated.png", output_dir="generate")
-

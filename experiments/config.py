@@ -20,7 +20,7 @@ class VertexConfig(Config):
                  reformer__depth=12,
                  reformer__heads=8,
                  reformer__n_hashes=8,
-                 reformer__bucket_size=75,
+                 reformer__bucket_size=45,
                  reformer__causal=True,
                  reformer__lsh_dropout=0.2,
                  reformer__ff_dropout=0.2,

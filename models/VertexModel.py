@@ -127,7 +127,6 @@ class VertexModel(nn.Module):
         targets: torch.Tensor
             Tensor of labels required if `class_conditional` is True.
         """
-        
         coord_embeddings = self.coord_embeddings(batch_d['axises_tokens'].long().to(self.device))
         pos_embeddings = self.pos_embeddings(batch_d['position_tokens'].long().to(self.device))
         vert_embeddings = self.vert_embedding(batch_d['vertices_tokens'].long().to(self.device))
@@ -163,7 +162,6 @@ class VertexModel(nn.Module):
         top_p: float, optional
             Proportion of probability mass to keep for top-p sampling.
         """
-        
         embed = self._embed_inputs(batch_d, targets=targets)
         outputs = self.decoder(embed)
 
@@ -200,30 +198,31 @@ class VertexModel(nn.Module):
         torch.Tensor
             Generated tensor of vertices.
         """
-        max_sample_length = max_sample_length or self.max_num_input_verts
-        tokens = tokenizer.get_initial_sampling_tokens(num_samples)
-
-        tokens = {
-            k: v.unsqueeze(0).to(self.device) for k, v in tokens.items()
+        samples = tokenizer.get_initial_sampling_tokens(num_samples)
+        samples = {
+            k: v.to(self.device) for k, v in samples.items()
         }
-
+        max_sample_length = max_sample_length or self.max_num_input_verts
         preds = []
-        pred_idx = 0
-        while pred_idx <= max_sample_length - 1:# and \
-                #((len(preds) == 0) or (preds[-1] != tokenizer.tokens["eos"][0] - len(tokenizer.tokens))):
-            if pred_idx >= 0:
-                tokens = tokenizer(torch.stack(preds))
-                tokens = {
-                    k: v.unsqueeze(0).to(self.device) for k, v in tokens.items()
-                }
-                # tokens["vertices_tokens"][:, pred_idx] = tokenizer.tokens["pad"][0]
-            print(tokens, tokens['vertices_tokens'].size(), tokens['axises_tokens'].size(), tokens['position_tokens'].size())
-            preds.append(self(tokens,
-                              targets=context,
-                              top_k=top_k,
-                              top_p=top_p).argmax(1)
-                         )
-            pred_idx += 1
 
-        preds = torch.stack(preds)# + len(tokenizer.tokens)
+        for i in range(max_sample_length - 2):
+            print(i)
+            if i > 0:
+                samples = tokenizer(torch.stack(preds, dim=0))
+                samples["vertices_tokens"][i+1] = tokenizer.tokens["pad"][0]
+                samples = {
+                    k: v.unsqueeze(0).to(self.device) for k, v in samples.items()
+                }
+            logits = self(samples,
+                          top_k=top_k,
+                          top_p=top_p)
+            # logits = F.softmax(logits, dim=1)
+            # next_sample = torch.distributions.Categorical(logits).sample()
+            logits = F.linear(logits[:, i], self.vert_embedding.weight)
+            next_sample = logits.argmax(1)
+            preds.append(next_sample)
+            if len(preds) > 0 and torch.all(preds[-1] == tokenizer.tokens["eos"][0]):
+                break
+
+        preds = torch.stack(preds)
         return preds
