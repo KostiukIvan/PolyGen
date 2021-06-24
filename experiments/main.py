@@ -121,7 +121,7 @@ if __name__ == "__main__":
             sample = np.array([extract_vert_values_from_tokens(sample, seq_len=seq_len).numpy() for sample in out.cpu()])
         elif epoch % 1 == 0:
             recon = np.array([extract_vert_values_from_tokens(sample, seq_len=seq_len).numpy() for sample in out.cpu()])
-            plot_results(recon, f"reconstruction_{epoch}_{i}.png", output_dir="results_class_embv2")
+            plot_results(recon, f"reconstruction_{epoch}_{i}.png", output_dir="results")
 
         print(f"Epoch {epoch}: loss {total_loss}, chamfer_dist {total_chamfer_loss},"
               f" Mean accuracy {torch.mean(total_accuracy)}")
