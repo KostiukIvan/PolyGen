@@ -1,4 +1,5 @@
 from data_utils.transformations import *
+from data_utils.tokenizer_vm import VertexTokenizer
 import numpy as np
 import os
 from os.path import join
@@ -25,7 +26,6 @@ class VerticesDataset(Dataset):
                             NormalizeVertices(),
                             QuantizeVertices(),
                             ToTensor(),
-                            #ResizeVertices(600),
                             VertexTokenizer()],
                 split='train',
                 train_percentage=0.925):
@@ -77,7 +77,6 @@ class MeshesDataset(Dataset):
                             NormalizeVertices(),
                             QuantizeVertices(),
                             ToTensor(),
-                            #ResizeVertices(600),
                             VertexTokenizer()]):
         """
         Args:

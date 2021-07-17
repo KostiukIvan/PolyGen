@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from data_utils.tokenizer_vm import VertexTokenizer
+
 
 def dequantize_vertices(vertices, *, n_bits=8, add_noise=False):
     """
@@ -69,6 +71,7 @@ class VertexModel(nn.Module):
 
     def __init__(self,
                  decoder,
+                 tokenizer,
                  embedding_dim,
                  quantization_bits,
                  class_conditional=False,
@@ -81,6 +84,8 @@ class VertexModel(nn.Module):
         ----------
         decoder: dict
             TransformerDecoder object.
+        tokenizer: object with __call__ method
+            VertexTokenizer object
         embedding_dim: int
             Value taken from TransformerDecoder and it determines used embedding dim.
         quantization_bits: int
@@ -96,12 +101,14 @@ class VertexModel(nn.Module):
         """
         super().__init__()
         self.decoder = decoder
+        self.tokenizer = tokenizer
         self.embedding_dim = embedding_dim
         self.class_conditional = class_conditional
         self.num_classes = num_classes
         self.max_num_input_verts = max_num_input_verts
         self.quantization_bits = quantization_bits
         self.use_discrete_embeddings = use_discrete_embeddings
+        self.loss = nn.CrossEntropyLoss(ignore_index=self.tokenizer.tokens['pad'][0].item())
         self.device = device
 
         # prepare embeddings modules
@@ -116,7 +123,7 @@ class VertexModel(nn.Module):
 
         self.project_to_logits = nn.LayerNorm(self.embedding_dim)
 
-    def _embed_inputs(self, batch_d, targets=None):
+    def _embed_inputs(self, batch_d):
         """
         Embeds vertex positions, values and coordinate info
 
@@ -124,8 +131,7 @@ class VertexModel(nn.Module):
         ----------
         vertices: torch.Tensor
             Vertices of shape [batch_size, max_sequence_length, 3]
-        targets: torch.Tensor
-            Tensor of labels required if `class_conditional` is True.
+ue.
         """
         
         coord_embeddings = self.coord_embeddings(batch_d['axises_tokens'].long().to(self.device))
@@ -143,8 +149,7 @@ class VertexModel(nn.Module):
 
         return torch.cat([zero_embed_tiled, embeddings], dim=1)
 
-    def forward(self, batch_d, *, targets=None,
-                top_k=0, top_p=1):
+    def forward(self, batch_d, top_k=0, top_p=1):
         """
         Forward pass of VertexModel.
 
@@ -156,15 +161,13 @@ class VertexModel(nn.Module):
         -------
         torch.Tensor
             Predictive distribution of shape [batch_size, seq_len]/
-        targets: torch.Tensor, optional
-            Tensor of labels required if `class_conditional` is True.
         top_k: int, optional
             Number of tokens to keep from top-k sampling.
         top_p: float, optional
             Proportion of probability mass to keep for top-p sampling.
         """
         
-        embed = self._embed_inputs(batch_d, targets=targets)
+        embed = self._embed_inputs(batch_d)
         outputs = self.decoder(embed)
 
         outputs = self.project_to_logits(outputs)
@@ -172,8 +175,32 @@ class VertexModel(nn.Module):
         # outputs /= temperature
         outputs = top_k_logits(outputs, top_k)
         outputs = top_p_logits(outputs, top_p)
-
+        outputs = torch.transpose(outputs, 1, 2)
         return outputs
+
+    def backward(self, model_output, target_vertices):
+        """
+            Backward pass of VertexModel.
+
+            Parameters
+            ----------
+            model_output: torch.Tensor
+                Tensor representing batch of shape [batch_size, seq_len].
+                Output returned by VertexModel
+            target_vertices: torch.Tensor
+                Tensor no grad representing batch of shape [batch_size, seq_len].
+                Target output of the current object
+            Returns
+            -------
+            torch.Tensor
+                Value of the calculated loss
+        """
+        assert model_output.shape[0] == target_vertices.shape[0]
+
+        loss = self.loss(model_output, target_vertices)
+        return loss
+
+
 
     def sample(self, num_samples, tokenizer, *,
                context=None, max_sample_length=None, top_k=0, top_p=1):

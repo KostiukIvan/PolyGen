@@ -9,6 +9,7 @@ from pytorch3d.loss import chamfer_distance
 import data_utils.dataloader as dl
 from data_utils.transformations import *
 from data_utils.visualisation import plot_results
+from data_utils.tokenizer_vm import VertexTokenizer
 from torch.utils.data import DataLoader
 from models.VertexModel import VertexModel
 from reformer_pytorch import Reformer
@@ -53,8 +54,11 @@ training_data = dl.MeshesDataset("./meshes")
 print("Loaded data len: ", len(training_data))
 
 train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
+
 decoder = Reformer(**config['reformer']).to(device)
+tokenizer = VertexTokenizer()
 model = VertexModel(decoder,
+                    tokenizer,
                     embedding_dim=config['reformer']['dim'],
                     quantization_bits=8,
                     class_conditional=True,
@@ -64,8 +68,8 @@ model = VertexModel(decoder,
                     ).to(device)
 learning_rate = 3e-4
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-ignore_index = VertexTokenizer().tokens['pad'][0].item()
-loss_fn = nn.CrossEntropyLoss(ignore_index=ignore_index)
+ignore_index = tokenizer.tokens['pad'][0].item()
+
 
 writer = None
 if use_tensorboard:
@@ -83,44 +87,31 @@ if __name__ == "__main__":
         total_loss = total_chamfer_loss = total_accuracy = 0.0
         sample = None
         batch_loss = None
-        for i, batch in enumerate(train_dataloader):
-            if i == len(train_dataloader) or (i + 1) % back_prop_freq == 0:
-                optimizer.zero_grad()
-
-            data, class_idx = batch
-            target = data['vertices_tokens'].to(device)
-            
-            out = model(data, targets=class_idx)
+        for i, (batch_d, class_idx) in enumerate(train_dataloader):
+            optimizer.zero_grad()
+            model_output = model(batch_d)
+            loss = model.backward(model_output, batch_d['target_vertices'])
+            loss.backward()
+            optimizer.step()
             # note: remove class embedding when loss is calculated
             # TODO fox for class embedding
             # out = out[:, 1:, :]
 
-            out = torch.transpose(out, 1, 2)
-            loss = loss_fn(out, target)
-            total_loss += loss.item()
             # note: Calculate metrics
             with torch.no_grad():
-                out_verts = torch.Tensor([extract_vert_values_from_tokens(sample, seq_len=seq_len).numpy()
-                                         for sample in out.cpu()]).to(device)
-                target_verts = torch.Tensor([extract_vert_values_from_tokens(sample, seq_len=seq_len, is_target=True).numpy()
-                                            for sample in target.cpu()]).to(device)
+                out_verts = torch.Tensor([tokenizer.detokenize(sample, seq_len=seq_len).numpy()
+                                         for sample in model_output.cpu()]).to(device)
+                target_verts = torch.Tensor([tokenizer.detokenize(sample, seq_len=seq_len, is_target=True).numpy()
+                                            for sample in batch_d['target_vertices'].cpu()]).to(device)
                 total_chamfer_loss += chamfer_distance(out_verts, target_verts)[0].item()
 
-                total_accuracy += accuracy(out, target, ignore_index=ignore_index, device=device)
+                total_accuracy += accuracy(model_output, batch_d['target_vertices'], ignore_index=ignore_index, device=device)
 
-            if batch_loss:
-                batch_loss += loss.item()
-            else:
-                batch_loss = loss
-            if i == len(train_dataloader) or (i + 1) % back_prop_freq == 0:
-                batch_loss.backward()
-                optimizer.step()
-                batch_loss = None
 
         if use_tensorboard and i == 0:
-            sample = np.array([extract_vert_values_from_tokens(sample, seq_len=seq_len).numpy() for sample in out.cpu()])
+            sample = np.array([tokenizer.detokenize(sample, seq_len=seq_len).numpy() for sample in model_output.cpu()])
         elif epoch % 1 == 0:
-            recon = np.array([extract_vert_values_from_tokens(sample, seq_len=seq_len).numpy() for sample in out.cpu()])
+            recon = np.array([tokenizer.detokenize(sample, seq_len=seq_len).numpy() for sample in model_output.cpu()])
             plot_results(recon, f"reconstruction_{epoch}_{i}.png", output_dir="results")
 
         print(f"Epoch {epoch}: loss {total_loss}, chamfer_dist {total_chamfer_loss},"
