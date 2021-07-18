@@ -168,13 +168,14 @@ ue.
         """
         
         embed = self._embed_inputs(batch_d)
-        outputs = self.decoder(embed)
+        outputs = self.decoder(embed, input_mask=batch_d['padding_mask'])
 
         outputs = self.project_to_logits(outputs)
 
         # outputs /= temperature
         outputs = top_k_logits(outputs, top_k)
         outputs = top_p_logits(outputs, top_p)
+
         outputs = torch.transpose(outputs, 1, 2)
         return outputs
 
@@ -199,8 +200,6 @@ ue.
 
         loss = self.loss(model_output, target_vertices)
         return loss
-
-
 
     def sample(self, num_samples, tokenizer, *,
                context=None, max_sample_length=None, top_k=0, top_p=1):
@@ -228,29 +227,28 @@ ue.
             Generated tensor of vertices.
         """
         max_sample_length = max_sample_length or self.max_num_input_verts
-        tokens = tokenizer.get_initial_sampling_tokens(num_samples)
-
-        tokens = {
-            k: v.unsqueeze(0).to(self.device) for k, v in tokens.items()
-        }
+        tokens_d = self.tokenizer.get_initial_sampling_tokens(num_samples)
 
         preds = []
         pred_idx = 0
-        while pred_idx <= max_sample_length - 1:# and \
-                #((len(preds) == 0) or (preds[-1] != tokenizer.tokens["eos"][0] - len(tokenizer.tokens))):
-            if pred_idx >= 0:
-                tokens = tokenizer(torch.stack(preds))
-                tokens = {
-                    k: v.unsqueeze(0).to(self.device) for k, v in tokens.items()
+        while pred_idx <= max_sample_length - 1:
+            if pred_idx >= 1:
+                tokens_d = self.tokenizer.tokenize(pred)
+                tokens_d = {
+                    k: v.unsqueeze(0).to(self.device) for k, v in tokens_d.items()
                 }
-                # tokens["vertices_tokens"][:, pred_idx] = tokenizer.tokens["pad"][0]
-            print(tokens, tokens['vertices_tokens'].size(), tokens['axises_tokens'].size(), tokens['position_tokens'].size())
-            preds.append(self(tokens,
-                              targets=context,
-                              top_k=top_k,
-                              top_p=top_p).argmax(1)
-                         )
+                tokens_d['vertices_tokens'][:, pred_idx + 1:] = self.tokenizer.tokens['pad']
+                tokens_d['padding_mask'][:, pred_idx + 1:] = True
+
+            recon_tokenized_vertices = self.forward(tokens_d)
+
+            pred = torch.max(recon_tokenized_vertices, dim=1)[1]
+            if pred[:, pred_idx] == self.tokenizer.tokens['eos']:
+                break
+
+            pred = pred[:, : pred_idx + 1]
+            print(pred.shape, pred)
             pred_idx += 1
 
-        preds = torch.stack(preds)# + len(tokenizer.tokens)
-        return preds
+        #preds = torch.stack(pred)# + len(tokenizer.tokens)
+        return pred

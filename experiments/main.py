@@ -24,7 +24,7 @@ use_tensorboard = False
 EPOCHS = 1000
 batch_size = 4
 back_prop_freq = 1
-save_weights_nth_epoch = 50
+save_weights_nth_epoch = 30
 seq_len = 2400
 GPU = True
 dataset_dir = os.path.join(os.getcwd(), 'data', 'shapenet_samples')
@@ -90,8 +90,8 @@ if __name__ == "__main__":
         for i, (batch_d, class_idx) in enumerate(train_dataloader):
             optimizer.zero_grad()
             model_output = model(batch_d)
-            loss = model.backward(model_output, batch_d['target_vertices'])
-            loss.backward()
+            total_loss = model.backward(model_output, batch_d['target_vertices'])
+            total_loss.backward()
             optimizer.step()
             # note: remove class embedding when loss is calculated
             # TODO fox for class embedding
@@ -106,7 +106,6 @@ if __name__ == "__main__":
                 total_chamfer_loss += chamfer_distance(out_verts, target_verts)[0].item()
 
                 total_accuracy += accuracy(model_output, batch_d['target_vertices'], ignore_index=ignore_index, device=device)
-
 
         if use_tensorboard and i == 0:
             sample = np.array([tokenizer.detokenize(sample, seq_len=seq_len).numpy() for sample in model_output.cpu()])
