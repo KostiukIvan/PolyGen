@@ -227,27 +227,36 @@ ue.
             Generated tensor of vertices.
         """
         max_sample_length = max_sample_length or self.max_num_input_verts
-        tokens_d = self.tokenizer.get_initial_sampling_tokens(num_samples)
+        init_len = 1
+        tokens_d, pred_idx = self.tokenizer.get_initial_sampling_tokens(num_samples, init_len)
+        tokens_d = {k: v.to(self.device) for k, v in tokens_d.items()}
 
         preds = []
-        pred_idx = 0
         while pred_idx <= max_sample_length - 1:
-            if pred_idx >= 1:
-                tokens_d = self.tokenizer.tokenize(pred)
-                tokens_d = {
-                    k: v.unsqueeze(0).to(self.device) for k, v in tokens_d.items()
-                }
-                tokens_d['vertices_tokens'][:, pred_idx + 1:] = self.tokenizer.tokens['pad']
-                tokens_d['padding_mask'][:, pred_idx + 1:] = True
+            if pred_idx >= (1 + init_len):
+                #print(pred.shape, pred)
+                one_prediction = pred[:, pred_idx - 1]
+                #print("0: ",  tokens_d['vertices_tokens'].shape, tokens_d['vertices_tokens'])
+                pred = tokens_d['vertices_tokens'][:, 1 : pred_idx + 1]
+                #print("1: ", pred.shape, pred)
+                pred[:, pred_idx - 1] = one_prediction
+                print("2: ", pred.shape, pred)
+
+                tokens_d = self.tokenizer.tokenize_without_end(pred)
+                #print("3: ", tokens_d['vertices_tokens'].shape, tokens_d['vertices_tokens'])
+                #if pred_idx > 3:
+                #    return
+                tokens_d = {k: v.unsqueeze(0) for k, v in tokens_d.items()}
+                #tokens_d['vertices_tokens'][:, pred_idx + 1:] = self.tokenizer.tokens['pad']
+                #tokens_d['padding_mask'][:, pred_idx + 1:] = True
+
 
             recon_tokenized_vertices = self.forward(tokens_d)
-
             pred = torch.max(recon_tokenized_vertices, dim=1)[1]
-            if pred[:, pred_idx] == self.tokenizer.tokens['eos']:
+            
+            if pred[:, pred_idx] == self.tokenizer.tokens['eos'] or pred_idx >= max_sample_length:
                 break
 
-            pred = pred[:, : pred_idx + 1]
-            print(pred.shape, pred)
             pred_idx += 1
 
         #preds = torch.stack(pred)# + len(tokenizer.tokens)

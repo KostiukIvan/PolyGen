@@ -21,7 +21,7 @@ if GPU and torch.cuda.is_available():
 else:
     device = None
 
-vertex_tokenizer = VertexTokenizer(max_seq_len=2400)
+vertex_tokenizer = VertexTokenizer(max_seq_len=2400, device=device)
 decoder = Reformer(**config['reformer']).to(device)
 model = VertexModel(decoder,
                     vertex_tokenizer,
@@ -47,7 +47,8 @@ if __name__ == "__main__":
         model_output = model.sample(
             num_samples=1,
             tokenizer=vertex_tokenizer,
-            context=torch.tensor([0])
+            context=torch.tensor([0]),
+            max_sample_length=2400
         )
     sample = np.array([vertex_tokenizer.detokenize(sample, seq_len=2400, is_target=True).numpy()
                               for sample in model_output.cpu()])

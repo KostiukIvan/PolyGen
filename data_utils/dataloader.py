@@ -45,7 +45,7 @@ class VerticesDataset(Dataset):
                 continue
             for augmentation_dir in os.listdir(join(root_dir, class_name)):
                 for i, augmented_mesh_file in enumerate(os.listdir(join(root_dir, class_name, augmentation_dir))):
-                    if i > 1:
+                    if i > 3:
                         break
                     file_paths.append((join(root_dir, class_name, augmentation_dir, augmented_mesh_file), class_idx))
         self.X_train, self.X_valid = train_test_split(file_paths, test_size=1 - train_percentage, shuffle=True)

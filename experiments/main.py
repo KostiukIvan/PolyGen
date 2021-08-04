@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 import torch.nn as nn
 
@@ -21,10 +22,10 @@ from utils.metrics import accuracy
 
 use_tensorboard = False
 
-EPOCHS = 1000
-batch_size = 4
-back_prop_freq = 1
-save_weights_nth_epoch = 30
+EPOCHS = 2500
+batch_size = 10
+back_prop_freq = 2
+save_weights_nth_epoch = 20
 seq_len = 2400
 GPU = True
 dataset_dir = os.path.join(os.getcwd(), 'data', 'shapenet_samples')
@@ -38,8 +39,8 @@ if GPU and torch.cuda.is_available():
 else:
     device = None
 
-'''
-training_data = dl.VerticesDataset(root_dir="/mnt/remote/wmii_gmum_projects/datasets/ShapeNetPolygen/",
+
+training_data = dl.VerticesDataset(root_dir="/shared/results/ikostiuk/datasets/polygen_exports",
                                    transform=[SortVertices(),
                                         NormalizeVertices(),
                                         QuantizeVertices(),
@@ -51,9 +52,10 @@ training_data = dl.VerticesDataset(root_dir="/mnt/remote/wmii_gmum_projects/data
                                    train_percentage=0.99)
 '''
 training_data = dl.MeshesDataset("./meshes")
+'''
 print("Loaded data len: ", len(training_data))
 
-train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
+train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True, num_workers=8)
 
 decoder = Reformer(**config['reformer']).to(device)
 tokenizer = VertexTokenizer()
@@ -84,15 +86,27 @@ if __name__ == "__main__":
     model_weights_path, epoch, total_loss = load_model(params, model, optimizer)
     model.train()
     for epoch in range(epoch, EPOCHS + 1):
+        start = time.time()
         total_loss = total_chamfer_loss = total_accuracy = 0.0
         sample = None
         batch_loss = None
         for i, (batch_d, class_idx) in enumerate(train_dataloader):
-            optimizer.zero_grad()
-            model_output = model(batch_d)
-            total_loss = model.backward(model_output, batch_d['target_vertices'])
-            total_loss.backward()
-            optimizer.step()
+            batch_d = {
+                    k: v.to(device) for k, v in batch_d.items()
+                }
+            if i % back_prop_freq == 0 or i == len(train_dataloader) - 1:
+                optimizer.zero_grad()
+                model_output = model(batch_d)
+                loss = model.backward(model_output, batch_d['target_vertices'])
+            else:
+                model_output = model(batch_d)
+                loss+= model.backward(model_output, batch_d['target_vertices'])
+
+            if i % back_prop_freq == 0 or i == len(train_dataloader) - 1:
+                loss.backward()
+                optimizer.step()
+
+            total_loss += loss.item()
             # note: remove class embedding when loss is calculated
             # TODO fox for class embedding
             # out = out[:, 1:, :]
@@ -113,8 +127,8 @@ if __name__ == "__main__":
             recon = np.array([tokenizer.detokenize(sample, seq_len=seq_len).numpy() for sample in model_output.cpu()])
             plot_results(recon, f"reconstruction_{epoch}_{i}.png", output_dir="results")
 
-        print(f"Epoch {epoch}: loss {total_loss}, chamfer_dist {total_chamfer_loss},"
-              f" Mean accuracy {torch.mean(total_accuracy)}")
+        print(f"Epoch {epoch}: [{round((time.time() - start) / 60, 2)}]: loss {round(total_loss, 4)}, chamfer_dist {round(total_chamfer_loss, 4)},"
+              f" Mean accuracy {round(torch.mean(total_accuracy).item(), 4)}")
         if epoch % save_weights_nth_epoch == 0:
             print('saving weights')
             torch.save({
